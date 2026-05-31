@@ -28,13 +28,13 @@ class BackupService:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         temp_zip_path = Path(f"backups/temp_backup_{timestamp}.zip")
         
-        # Define files to package (renamed DEPLOY_PTERODACTYL.md to DEPLOYMENT.md)
+        # Define files to package
         source_files = [
             "main.py", "config.py", "database.py", "telegram_client.py",
             "commands.py", "scheduler.py", "web_panel.py",
             "server_status.py", "utils.py", "requirements.txt", "README.md",
-            "DEPLOYMENT.md", "GITHUB_WORKFLOW.md", "CHANGELOG.md", 
-            ".env.example", ".gitignore"
+            "DEPLOYMENT.md", "DEPLOY_PTERODACTYL.md", "GITHUB_WORKFLOW.md",
+            "SECURITY.md", "CHANGELOG.md", ".env.example"
         ]
         
         # Include services files

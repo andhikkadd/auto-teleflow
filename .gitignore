@@ -5,13 +5,31 @@ venv/
 ENV/
 env/
 
-# Telethon session details
+# Campaigns specific secrets and databases
+campaigns/.env
+campaigns/*.session
+campaigns/*.session-journal
+campaigns/sessions/*.session
+campaigns/sessions/*.session-journal
+campaigns/data/*.db
+campaigns/data/*.db-journal
+campaigns/data/*.db-wal
+campaigns/data/*.db-shm
+campaigns/backups/*
+
+# Assistant specific secrets and databases
+assistant/.env
+assistant/data/*.db
+assistant/data/*.db-journal
+assistant/data/*.db-wal
+assistant/data/*.db-shm
+assistant/backups/*
+
+# General Telethon / SQLite files (backup protection)
 *.session
 *.session-journal
 sessions/*.session
 sessions/*.session-journal
-
-# SQLite database files
 data/*.db
 data/*.db-journal
 *.db
@@ -20,25 +38,23 @@ data/*.db-journal
 # Compiled Python files
 __pycache__/
 **pycache**/
+*.pyc
+*.pyo
+*.pyd
 *.py[cod]
 *$py.class
 
-# Temporary backups and local files
+# Local backups and logs
 backups/*
-backups/*.zip
-backups/*.gpg
-backups/*.tar.gz
-
-# System logs
 *.log
 logs/
 
-# IDE files
+# IDE settings
 .vscode/
 .idea/
 *.suo
 *.swp
 
-# Agent folders
+# Model agent folders
 .agents/
 production_artifacts/
