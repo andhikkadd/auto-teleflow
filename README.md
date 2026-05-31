@@ -1,4 +1,4 @@
-# Telegram Userbot Promotion Framework
+# Telegram Userbot Framework
 
 A resilient, modular, and fully documented Telegram userbot framework built on **Telethon**. It is designed to run 24/7 on any server/VPS using a process manager like **PM2** or **systemd** to automate message wave distributions and monitor target group health.
 
