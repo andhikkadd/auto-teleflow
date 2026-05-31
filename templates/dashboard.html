@@ -26,8 +26,7 @@
             </form>
             {% endif %}
 
-            <button class="btn btn-custom btn-accent" data-bs-toggle="modal" data-bs-target="#waveModal" {% if
-                is_wave_running %}disabled{% endif %}>
+            <button class="btn btn-custom btn-accent" data-bs-toggle="modal" data-bs-target="#waveModal" {% if is_wave_running %}disabled{% endif %}>
                 <i class="bi bi-rocket-takeoff-fill me-1"></i> Trigger Wave
             </button>
         </div>
@@ -75,8 +74,7 @@
         <div class="mt-4">
             <p class="text-secondary small mb-1">Active Wave Status:</p>
             {% if is_wave_running %}
-            <span class="text-warning fw-semibold"><i class="bi bi-arrow-repeat spin-slow me-1"></i> Dispatched &
-                Messaging...</span>
+            <span class="text-warning fw-semibold"><i class="bi bi-arrow-repeat spin-slow me-1"></i> Dispatched &amp; Messaging...</span>
             {% else %}
             <span class="text-muted"><i class="bi bi-dash-circle me-1"></i> Idle</span>
             {% endif %}

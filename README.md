@@ -55,7 +55,7 @@ A resilient, modular, and fully documented Telegram userbot framework built on *
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/username/your-repo.git
+git clone https://github.com/andhikkadd/telethon.git
 cd your-repo/
 ```
 
@@ -76,7 +76,7 @@ Run the application interactively once to complete the Telegram authentication p
 ```bash
 python3 main.py
 ```
-- Enter your phone number in international format (e.g., `+628123456789`).
+- Enter your phone number in international format (e.g., `+62xxxx`).
 - Input the OTP code sent to your Telegram account.
 - Input your Two-Step Verification (2FA) password if enabled.
 - Once logged in, terminate the script using `Ctrl + C`. Your session files are now securely saved in `sessions/`.
