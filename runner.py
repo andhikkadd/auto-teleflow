@@ -40,6 +40,15 @@ async def run_app(path, name):
     print(f"Application {name} terminated with return code {return_code}", flush=True)
 
 async def main():
+    # Fetch and print the actual public IP of the VPS Node
+    import urllib.request
+    try:
+        public_ip = urllib.request.urlopen('https://api.ipify.org', timeout=5).read().decode('utf-8').strip()
+        print(f"\n[runner] 🌎 VPS NODE PUBLIC IP: {public_ip}", flush=True)
+        print(f"[runner] 🔗 DIRECT PORTAL URL: http://{public_ip}:4765\n", flush=True)
+    except Exception as e:
+        print(f"[runner] Failed to resolve public VPS IP: {e}", flush=True)
+        
     tasks = []
     
     # 1. Run Campaigns application
