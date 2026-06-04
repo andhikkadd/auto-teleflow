@@ -103,8 +103,12 @@ async def register_handlers():
                 await handle_addtemplate(event, arg_str)
             elif cmd == "!addtemplates":
                 await handle_addtemplates(event, arg_str)
+            elif cmd == "!addgroups":
+                await handle_addgroups(event, arg_str)
             elif cmd == "!deltemplate":
                 await handle_deltemplate(event, arg_str)
+            elif cmd == "!delgroups":
+                await handle_delgroups(event, arg_str)
             elif cmd == "!preview":
                 await handle_preview(event)
             elif cmd == "!test":
@@ -284,6 +288,40 @@ async def handle_addgroup(event, arg_str):
             f"Detail: {type(e).__name__}: {sanitized_err}"
         )
 
+async def handle_addgroups(event, arg_str):
+    """Bulk add groups separated by '||'.
+    Example: !addgroups @group1||@group2||https://t.me/joinchat/xxxx
+    """
+    if not arg_str:
+        await event.reply("⚠️ Gunakan: `!addgroups <ref1>||<ref2>||...`")
+        return
+    # normalize zero‑width characters
+    clean_str = arg_str.replace('\u200b', '').replace('\u200c', '')
+    refs = [r.strip() for r in clean_str.split('||') if r.strip()]
+    if not refs:
+        await event.reply("⚠️ Tidak ada grup yang valid untuk ditambahkan.")
+        return
+    added = []
+    exists = []
+    for ref in refs:
+        try:
+            res = await group_svc.add_group(ref)
+            if res["status"] == "exists":
+                exists.append(f"`{ref}` (ID: {res['group']['id']})")
+            else:
+                added.append(f"`{ref}` (ID: {res['group']['id']})")
+        except Exception as e:
+            logger.exception(f"Error adding group {ref}: {e}")
+    msg_parts = []
+    if added:
+        msg_parts.append(f"✅ **{len(added)} grup berhasil ditambahkan:** {', '.join(added)}")
+    if exists:
+        msg_parts.append(f"ℹ️ **{len(exists)} grup sudah ada:** {', '.join(exists)}")
+    if msg_parts:
+        await event.reply('\n'.join(msg_parts))
+    else:
+        await event.reply("❌ Tidak ada grup yang berhasil ditambahkan.")
+
 async def handle_delgroup(event, arg_str):
     if not arg_str:
         await event.reply("⚠️ Gunakan: `!delgroup <DB_ID|username>`")
@@ -331,7 +369,29 @@ async def handle_addtemplate(event, arg_str):
     if not arg_str:
         await event.reply("⚠️ Gunakan: `!addtemplate <isi_pesan_promo>`")
         return
-        
+    # Jika pengguna secara tidak sengaja menggunakan !addtemplate dengan pemisah '||',
+    # kita tetap dapat menambah banyak template.
+    if "||" in arg_str:
+        # normalize possible zero‑width characters
+        clean_str = arg_str.replace('\u200b', '').replace('\u200c', '')
+        templates = [t.strip() for t in clean_str.split('||') if t.strip()]
+        logger.info(f"Parsed {len(templates)} templates in fallback addtemplate handler")
+        if not templates:
+            await event.reply("⚠️ Tidak ada template yang valid untuk ditambahkan.")
+            return
+        added_ids = []
+        for tmpl in templates:
+            try:
+                t_id = await template_svc.add_template(tmpl)
+                added_ids.append(str(t_id))
+            except Exception as e:
+                logger.exception(f"Error adding template: {e}")
+        if added_ids:
+            await event.reply(f"✅ **{len(added_ids)} template berhasil ditambahkan** (IDs: `{', '.join(added_ids)}`).")
+        else:
+            await event.reply("❌ Tidak ada template yang berhasil ditambahkan.")
+        return
+    # Penambahan tunggal standar
     t_id = await template_svc.add_template(arg_str)
     await event.reply(f"✅ **Template pesan berhasil ditambahkan** (ID: `{t_id}`).")
     
@@ -342,7 +402,10 @@ async def handle_addtemplates(event, arg_str):
     if not arg_str:
         await event.reply("⚠️ Gunakan: `!addtemplates <pesan1>||<pesan2>||...`")
         return
-    templates = [t.strip() for t in arg_str.split('||') if t.strip()]
+    # normalize zero‑width chars that may appear in Telegram messages
+    clean_str = arg_str.replace('\u200b', '').replace('\u200c', '')
+    templates = [t.strip() for t in clean_str.split('||') if t.strip()]
+    logger.info(f"Parsed {len(templates)} templates in addtemplates handler")
     if not templates:
         await event.reply("⚠️ Tidak ada template yang valid untuk ditambahkan.")
         return
