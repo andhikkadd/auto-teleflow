@@ -22,7 +22,7 @@ app = FastAPI(title="Auto-Teleflow Portal")
 # Configs
 PORTAL_HOST = os.getenv("PORTAL_HOST", "0.0.0.0").strip()
 try:
-    PORTAL_PORT = int(os.getenv("PORTAL_PORT", "4765"))
+    PORTAL_PORT = int(os.getenv("PORTAL_PORT") or os.getenv("SERVER_PORT") or "4765")
 except ValueError:
     PORTAL_PORT = 4765
 
