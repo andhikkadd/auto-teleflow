@@ -5,7 +5,7 @@ import asyncio
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from starlette.middleware.sessions import SessionMiddleware
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 
 # Load environment variables
 load_dotenv()
@@ -26,8 +26,18 @@ try:
 except ValueError:
     PORTAL_PORT = 4765
 
-CAMPAIGNS_URL = os.getenv("CAMPAIGNS_URL", "http://127.0.0.1:8001").strip()
-ASSISTANT_URL = os.getenv("ASSISTANT_URL", "http://127.0.0.1:8002").strip()
+# Load sub-app configurations to resolve internal ports dynamically
+camp_env = dotenv_values("campaigns/.env")
+asst_env = dotenv_values("assistant/.env")
+
+campaigns_host = camp_env.get("WEB_HOST") or "127.0.0.1"
+campaigns_port = camp_env.get("WEB_PORT") or "8000"
+CAMPAIGNS_URL = os.getenv("CAMPAIGNS_URL", f"http://{campaigns_host}:{campaigns_port}").strip()
+
+assistant_host = asst_env.get("WEB_HOST") or "127.0.0.1"
+assistant_port = asst_env.get("WEB_PORT") or "8001"
+ASSISTANT_URL = os.getenv("ASSISTANT_URL", f"http://{assistant_host}:{assistant_port}").strip()
+
 SESSION_SECRET = os.getenv("PORTAL_SESSION_SECRET", "auto-teleflow-portal-secret-key-98721").strip()
 
 # Add Session Middleware for portal panel selection state
