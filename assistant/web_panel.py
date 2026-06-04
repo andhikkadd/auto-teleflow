@@ -55,6 +55,8 @@ async def auth_exception_handler(request: Request, exc: NotAuthenticatedExceptio
 
 # Dependency to check login status
 async def require_login(request: Request):
+    if request.headers.get("x-portal-authenticated") == "true":
+        request.session["logged_in"] = True
     if not request.session.get("logged_in"):
         raise NotAuthenticatedException()
 
@@ -91,6 +93,8 @@ templates.context_processors.append(global_vars_processor)
 
 @app.get("/login", response_class=HTMLResponse)
 async def get_login(request: Request):
+    if request.headers.get("x-portal-authenticated") == "true":
+        request.session["logged_in"] = True
     if request.session.get("logged_in"):
         return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(request, "login.html")

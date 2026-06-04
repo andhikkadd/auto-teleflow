@@ -2,7 +2,7 @@ import os
 import httpx
 import logging
 import asyncio
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.background import BackgroundTask
@@ -38,6 +38,10 @@ CAMPAIGNS_URL = os.getenv("CAMPAIGNS_URL", f"http://{campaigns_host}:{campaigns_
 assistant_host = asst_env.get("WEB_HOST") or "127.0.0.1"
 assistant_port = asst_env.get("WEB_PORT") or "8001"
 ASSISTANT_URL = os.getenv("ASSISTANT_URL", f"http://{assistant_host}:{assistant_port}").strip()
+
+# Resolve unified credentials from campaigns or assistant
+PORTAL_ADMIN_USERNAME = (camp_env.get("WEB_ADMIN_USERNAME") or asst_env.get("WEB_ADMIN_USERNAME") or "admin").strip()
+PORTAL_ADMIN_PASSWORD = (camp_env.get("WEB_ADMIN_PASSWORD") or asst_env.get("WEB_ADMIN_PASSWORD") or "priahitam").strip()
 
 SESSION_SECRET = os.getenv("PORTAL_SESSION_SECRET", "auto-teleflow-portal-secret-key-98721").strip()
 
@@ -311,6 +315,171 @@ PORTAL_HTML = """
 </html>
 """
 
+# Beautiful unified login template
+LOGIN_HTML = """
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Auto-Teleflow Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-purple: #818cf8;
+            --accent-cyan: #38bdf8;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(14, 165, 233, 0.1) 0px, transparent 50%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(16px);
+            border-radius: 24px;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: inline-block;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #a5b4fc 0%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        p.subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.85rem 1rem;
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 0.9rem;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #6366f1 0%, #0ea5e9 100%);
+            color: white;
+            border: none;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+            margin-top: 1rem;
+        }
+
+        .btn-submit:hover {
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+        }
+
+        .error-msg {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            padding: 0.75rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="logo">🔐</div>
+        <h1>Portal Gateway</h1>
+        <p class="subtitle">Silakan masuk menggunakan kredensial administrator Anda</p>
+        
+        {error_section}
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required placeholder="Masukkan username admin">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required placeholder="Masukkan password secure">
+            </div>
+            
+            <button type="submit" class="btn-submit">Masuk ke Portal</button>
+        </form>
+    </div>
+</body>
+</html>
+"""
+
 async def proxy_request(request: Request, target_url: str):
     """Utility to proxy the HTTP request to the selected sub-app."""
     # 1. Prepare query params
@@ -319,6 +488,10 @@ async def proxy_request(request: Request, target_url: str):
     
     # 2. Extract request headers, removing Host & Content-Length to let httpx recalculate them
     headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
+    
+    # Inject auth header if the user has authenticated on the Portal
+    if request.session.get("portal_logged_in"):
+        headers["x-portal-authenticated"] = "true"
     
     # 3. Read body
     body = await request.body()
@@ -415,14 +588,40 @@ async def proxy_request(request: Request, target_url: str):
 
 # Routes
 
+@app.get("/login", response_class=HTMLResponse)
+async def get_portal_login(request: Request, error: str = ""):
+    if request.session.get("portal_logged_in"):
+        return RedirectResponse(url="/", status_code=303)
+        
+    error_section = f'<div class="error-msg">{error}</div>' if error else ""
+    return HTMLResponse(content=LOGIN_HTML.replace("{error_section}", error_section))
+
+@app.post("/login")
+async def post_portal_login(request: Request, username: str = Form(...), password: str = Form(...)):
+    import hmac
+    valid_user = hmac.compare_digest(username.strip(), PORTAL_ADMIN_USERNAME)
+    valid_pass = hmac.compare_digest(password.strip(), PORTAL_ADMIN_PASSWORD)
+    
+    if valid_user and valid_pass:
+        request.session["portal_logged_in"] = True
+        logger.info(f"Successful Portal login for user: {username}")
+        return RedirectResponse(url="/", status_code=303)
+        
+    logger.warning(f"Failed Portal login attempt for user: {username}")
+    return await get_portal_login(request, error="Username atau Password admin salah.")
+
 @app.get("/portal", response_class=HTMLResponse)
 async def get_portal(request: Request):
     """Selection panel landing page."""
+    if not request.session.get("portal_logged_in"):
+        return RedirectResponse(url="/login", status_code=303)
     return HTMLResponse(content=PORTAL_HTML)
 
 @app.get("/select-panel/{panel}")
 async def select_panel(panel: str, request: Request):
     """Switch active panel and redirect to root."""
+    if not request.session.get("portal_logged_in"):
+        return RedirectResponse(url="/login", status_code=303)
     if panel in ("campaigns", "assistant"):
         request.session["active_panel"] = panel
         logger.info(f"Session panel changed to: {panel}")
@@ -432,6 +631,8 @@ async def select_panel(panel: str, request: Request):
 @app.get("/")
 async def root_route(request: Request):
     """Routes domain root. Shows portal if none is selected, otherwise proxies to sub-app root."""
+    if not request.session.get("portal_logged_in"):
+        return RedirectResponse(url="/login", status_code=303)
     active_panel = request.session.get("active_panel")
     if not active_panel:
         return RedirectResponse(url="/portal", status_code=303)
@@ -442,6 +643,25 @@ async def root_route(request: Request):
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
 async def proxy_wildcard(request: Request, path: str):
     """Catches all other routes and forwards them to the selected sub-app."""
+    # Bypass auth for public routes (e.g. favicon, static assets)
+    if path in ("favicon.ico",) or path.startswith("static/"):
+        pass
+    # Intercept logout to clear Portal session too!
+    elif path == "logout":
+        request.session.clear()
+        logger.info("User logged out of Portal session.")
+        active_panel = request.session.get("active_panel")
+        if active_panel:
+            target_base = CAMPAIGNS_URL if active_panel == "campaigns" else ASSISTANT_URL
+            try:
+                # We can proxy the logout to clear the sub-app session too
+                await proxy_request(request, f"{target_base}/logout")
+            except Exception:
+                pass
+        return RedirectResponse(url="/login", status_code=303)
+    elif not request.session.get("portal_logged_in"):
+        return RedirectResponse(url="/login", status_code=303)
+        
     active_panel = request.session.get("active_panel")
     if not active_panel:
         return RedirectResponse(url="/portal", status_code=303)

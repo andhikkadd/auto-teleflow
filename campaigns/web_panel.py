@@ -82,6 +82,10 @@ def check_action_cooldown(action_name: str, cooldown_seconds: int = 30) -> Optio
 # Combined Middleware: auth protection and CSRF protection
 @app.middleware("http")
 async def csrf_and_auth_middleware(request: Request, call_next):
+    # Auto-login if authenticated via Portal Gateway
+    if request.headers.get("x-portal-authenticated") == "true":
+        request.session["logged_in"] = True
+
     # Ensure session contains a CSRF token
     if "csrf_token" not in request.session:
         request.session["csrf_token"] = secrets.token_hex(32)
