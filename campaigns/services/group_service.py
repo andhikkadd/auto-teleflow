@@ -92,14 +92,41 @@ class GroupService:
 
         client = telegram_client.get_client()
         try:
-            entity = await client.get_entity(clean_target)
+            invite_hash = None
+            if clean_target.startswith("joinchat/"):
+                invite_hash = clean_target.split("/")[-1]
+            elif clean_target.startswith("+"):
+                invite_hash = clean_target[1:]
+
+            entity = None
+            if invite_hash:
+                from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest
+                from telethon.errors import UserAlreadyParticipantError
+                try:
+                    updates = await client(ImportChatInviteRequest(invite_hash))
+                    if hasattr(updates, "chats") and updates.chats:
+                        entity = updates.chats[0]
+                except UserAlreadyParticipantError:
+                    invite_info = await client(CheckChatInviteRequest(invite_hash))
+                    if hasattr(invite_info, "chat"):
+                        entity = invite_info.chat
+
+            if not entity:
+                entity = await client.get_entity(clean_target)
+                
             title = getattr(entity, "title", "No Title")
             
-            # If the entity has a username, store it. Otherwise, store the integer ID.
+            from telethon.utils import get_peer_id
+            # If the entity has a username, store it. Otherwise, store the signed peer ID.
             if getattr(entity, "username", None):
                 db_username = "@" + entity.username
             else:
-                db_username = str(entity.id)
+                db_username = str(get_peer_id(entity))
+                
+            # Double check with resolved username/ID to avoid duplicates
+            existing_resolved = await db.fetchone("SELECT * FROM groups WHERE username = ?", (db_username,))
+            if existing_resolved:
+                return {"status": "exists", "group": existing_resolved}
                 
             now_str = datetime.now().isoformat()
             

@@ -110,7 +110,7 @@ async def register_handlers():
             elif cmd == "!backup":
                 await handle_backup(event)
             elif cmd == "!logs":
-                await handle_logs(event)
+                await handle_logs(event, arg_str)
             elif cmd == "!reload":
                 await handle_reload(event)
             
@@ -414,26 +414,33 @@ async def handle_backup(event):
             f"• **Pesan**: `{sanitized_err}`"
         )
 
-async def handle_logs(event):
-    last_wave = await db.fetchone("SELECT * FROM wave_logs ORDER BY id DESC LIMIT 1")
-    if not last_wave:
-        await event.reply("⚠️ Belum ada logs wave tersimpan di database.")
-        return
+async def handle_logs(event, arg_str):
+    if arg_str and arg_str.isdigit():
+        wave_id = int(arg_str)
+        wave = await db.fetchone("SELECT * FROM wave_logs WHERE id = ?", (wave_id,))
+        if not wave:
+            await event.reply(f"⚠️ Wave ID `{wave_id}` tidak ditemukan.")
+            return
+    else:
+        wave = await db.fetchone("SELECT * FROM wave_logs ORDER BY id DESC LIMIT 1")
+        if not wave:
+            await event.reply("⚠️ Belum ada logs wave tersimpan di database.")
+            return
         
-    items = await db.fetchall("SELECT * FROM wave_log_items WHERE wave_log_id = ? ORDER BY id ASC", (last_wave["id"],))
+    items = await db.fetchall("SELECT * FROM wave_log_items WHERE wave_log_id = ? ORDER BY id ASC", (wave["id"],))
     
     duration = "N/A"
-    if last_wave["finished_at"] and last_wave["started_at"]:
-        start = datetime.fromisoformat(last_wave["started_at"])
-        finish = datetime.fromisoformat(last_wave["finished_at"])
+    if wave["finished_at"] and wave["started_at"]:
+        start = datetime.fromisoformat(wave["started_at"])
+        finish = datetime.fromisoformat(wave["finished_at"])
         duration = f"{(finish - start).total_seconds():.1f} detik"
         
     lines = [
-        f"📝 **Log Wave ID `{last_wave['id']}`**",
-        f"• **Dimulai**: `{last_wave['started_at']}`",
+        f"📝 **Log Wave ID `{wave['id']}`**",
+        f"• **Dimulai**: `{wave['started_at']}`",
         f"• **Durasi**: `{duration}`",
-        f"• **Hasil**: {last_wave['success_count']} Sukses / {last_wave['fail_count']} Gagal",
-        f"• **Status**: `{last_wave['status'].upper()}`",
+        f"• **Hasil**: {wave['success_count']} Sukses / {wave['fail_count']} Gagal",
+        f"• **Status**: `{wave['status'].upper()}`",
         f"\n📋 **Detail Pengiriman:**"
     ]
     

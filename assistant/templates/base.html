@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+    {% if logged_in %}
+    <nav class="navbar">
+        <div class="navbar-brand">
+            🛡️ Admin <span class="ops">Panel</span>
+        </div>
+        <div class="navbar-menu">
+            <a href="/" class="navbar-item {% if request.url.path == '/' %}active{% endif %}">📊 Dashboard</a>
+            <a href="/products" class="navbar-item {% if request.url.path.startswith('/products') %}active{% endif %}">📁 Products</a>
+            <a href="/ai-settings" class="navbar-item {% if request.url.path == '/ai-settings' %}active{% endif %}">🤖 Bot Settings</a>
+            <a href="/settings" class="navbar-item {% if request.url.path == '/settings' %}active{% endif %}">⚙️ Shop Settings</a>
+        </div>
+        <div class="navbar-user">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">admin: <strong style="color: var(--text-secondary);">{{ admin_username }}</strong></span>
+            <a href="/logout" class="logout-btn">Logout</a>
+        </div>
+    </nav>
+    {% endif %}
+
+    <!-- Sleek Toast Notification Popup Container -->
+    <div class="toast-container" id="toastContainer">
+        {% if flash_success %}
+        <div class="toast toast-success show">
+            <div class="toast-icon">✅</div>
+            <div class="toast-content">
+                <div class="toast-title">Success</div>
+                <div class="toast-message">{{ flash_success }}</div>
+            </div>
+            <button class="toast-close" onclick="closeToast(this)">&times;</button>
+        </div>
+        {% endif %}
+        {% if flash_danger %}
+        <div class="toast toast-danger show">
+            <div class="toast-icon">❌</div>
+            <div class="toast-content">
+                <div class="toast-title">Error</div>
+                <div class="toast-message">{{ flash_danger }}</div>
+            </div>
+            <button class="toast-close" onclick="closeToast(this)">&times;</button>
+        </div>
+        {% endif %}
+    </div>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>Admin Panel &mdash; &copy; {{ datetime.now().year if datetime else 2026 }} Auto-Teleflow</p>
+    </footer>
+
+    <script>
+    // Global modal helpers
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+    window.onclick = function(e) { if (e.target.classList.contains('modal')) e.target.style.display = 'none'; }
+
+    // Toast control helpers
+    function closeToast(btn) {
+        const toast = btn.closest('.toast');
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        const toasts = document.querySelectorAll('.toast');
+        toasts.forEach(toast => {
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, 4500);
+        });
+    });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

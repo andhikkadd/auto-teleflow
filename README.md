@@ -1,45 +1,47 @@
-# Auto-Teleflow
+# Auto-Teleflow Bot Ecosystem
 
-A modular Telegram automation suite and monorepo designed to manage marketing distribution tasks and customer support automations concurrently.
+A unified Telegram automation suite combining a **Promotion Userbot (Campaigns)** and an **AI Pre-Sales Chatbot (Assistant)** managed through a single Web Portal Gateway.
+
+> [!NOTE]
+> This project is currently under active development. The AI-powered Assistant bot, in particular, is undergoing active testing and persona tuning.
 
 ---
 
-## Workspace Structure
-
-The workspace is organized as a monorepo containing two distinct sub-applications:
+## 📂 Project Structure
 
 ```text
 auto-teleflow/
-├── campaigns/       # Existing Telegram promo/wave scheduler (Telethon userbot)
-├── assistant/       # Planned BotFather customer support chatbot (Placeholder)
-├── runner.py        # Central monorepo orchestrator launcher
-├── DEPLOY.md        # Deployment instructions for production servers
-└── SECURITY.md      # Global security checklists
+├── campaigns/       # Telegram promo broadcasting & target group scheduler
+├── assistant/       # Customer support & pre-sales chatbot powered by Gemini AI
+├── portal.py        # Single Web Portal Gateway
+└── runner.py        # Multi-process orchestrator script
 ```
 
 ### 1. Campaigns (`campaigns/`)
-The campaign application is a Telethon-based userbot designed for automated promotional wave scheduling, target channel diagnostic monitoring, and system metrics reporting. It features a built-in dark-themed **FastAPI + Jinja2** administration panel.
+A Telethon-based userbot designed to automatically broadcast promotional waves to target groups on a schedule, monitor group diagnostics, and output system status logs.
 
 ### 2. Assistant (`assistant/`)
-The assistant application is a planned official Telegram Bot (built on `aiogram`) to act as a pre-sales responder. It will answer product questions and route customers to human representatives on WhatsApp.
+An official Telegram bot built with `aiogram` v3 that uses Gemini AI to answer customer inquiries, display interactive product catalogs/pricing packages, collect leads, and redirect customers to WhatsApp.
 
 ---
 
-## Quick Start & Running Locally
+## 🚀 Getting Started
 
-### Direct Execution (Campaigns only)
-Navigate directly to the campaigns directory to configure and run:
-```bash
-cd campaigns/
-pip install -r requirements.txt
-cp .env.example .env
-# Configure variables in .env
-python main.py
-```
+1. **Configure Environment Variables**:
+   Copy `.env.example` to `.env` in both `campaigns/` and `assistant/` folders, then configure the required parameters (such as API keys, bot tokens, etc.).
 
-### Centralized Orchestration (Monorepo Launcher)
-To run the entire suite under a single unified console stream:
-```bash
-python runner.py
-```
-This starts the `campaigns` sub-application in a subprocess, automatically prefixing output streams with `[campaigns]`. Once the `assistant` app is implemented, it will run concurrently in the same orchestrator.
+2. **Launch All Services**:
+   Start the orchestrator in the root directory to boot the campaigns bot, assistant bot, and the unified portal concurrently:
+   ```bash
+   python runner.py
+   ```
+
+3. **Access the Web Panels**:
+   Open your web browser and navigate to the portal gateway port (default: `http://localhost:4765` or your VPS allocated port). This landing page lets you switch between the Campaigns and Assistant dashboards. To return to the gateway page at any time, visit `http://localhost:4765/portal`.
+
+---
+
+## 🔒 Security & Auto-Backups
+
+* **Secret Isolation**: All `.env` configuration files, SQLite databases (`.db`), and Telegram session files (`.session`) are ignored via `.gitignore` to prevent accidental credential exposure to public repositories.
+* **Automated 2-Day Backups**: The system runs a background scheduler that automatically creates a secure, GPG-encrypted backup of database and session files every 2 days. The backup is sent directly to your configured Telegram reporting target (channel or admin account), and local backup files are cleaned up immediately to save server storage.

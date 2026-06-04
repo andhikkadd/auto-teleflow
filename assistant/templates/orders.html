@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Orders Management</h1>
+        <p>Monitor and process premium application orders</p>
+    </div>
+    <div class="page-header-actions">
+        <button class="btn btn-primary" onclick="openModal('addOrderModal')">➕ New Order</button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h2>Active Orders Queue</h2>
+        <span class="badge badge-primary">Mock View</span>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Time</th>
+                        <th>Customer</th>
+                        <th>Product</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th style="width: 150px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>#ORD-8821</code></td>
+                        <td>35 Mins Ago</td>
+                        <td><strong>Siti Aminah</strong><br><span style="color:var(--text-muted); font-size:0.75rem;">@sitiaminah</span></td>
+                        <td>Canva Pro (1 Bulan)</td>
+                        <td>IDR 25,000</td>
+                        <td><span class="badge badge-warning">WAITING_VALIDATION</span></td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-success btn-xs" onclick="alert('Order approved successfully! (Mock Action)')">Approve</button>
+                                <button class="btn btn-danger btn-xs" onclick="alert('Order cancelled! (Mock Action)')">Cancel</button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>#ORD-8819</code></td>
+                        <td>2 Hours Ago</td>
+                        <td><strong>Rudi Hermawan</strong><br><span style="color:var(--text-muted); font-size:0.75rem;">@rudi_herm</span></td>
+                        <td>Netflix Premium (3 Bulan)</td>
+                        <td>IDR 120,000</td>
+                        <td><span class="badge badge-orange">WAITING_DATA</span></td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-primary btn-xs" onclick="alert('Request sent to customer! (Mock Action)')">Request Data</button>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>#ORD-8815</code></td>
+                        <td>Today, 08:15 AM</td>
+                        <td><strong>Dewi Lestari</strong><br><span style="color:var(--text-muted); font-size:0.75rem;">@dewiles</span></td>
+                        <td>Youtube Premium (1 Tahun)</td>
+                        <td>IDR 150,000</td>
+                        <td><span class="badge badge-success">COMPLETED</span></td>
+                        <td>
+                            <button class="btn btn-secondary btn-xs" disabled>Processed</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>#ORD-8810</code></td>
+                        <td>Yesterday, 04:30 PM</td>
+                        <td><strong>Bambang Wijaya</strong><br><span style="color:var(--text-muted); font-size:0.75rem;">@bambangw</span></td>
+                        <td>Spotify Premium (6 Bulan)</td>
+                        <td>IDR 60,000</td>
+                        <td><span class="badge badge-success">COMPLETED</span></td>
+                        <td>
+                            <button class="btn btn-secondary btn-xs" disabled>Processed</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Order Modal -->
+<div id="addOrderModal" class="modal">
+    <div class="modal-content modal-md">
+        <div class="modal-header">
+            <h3>Create New Order</h3>
+            <span class="close-modal" onclick="closeModal('addOrderModal')">&times;</span>
+        </div>
+        <div class="modal-body">
+            <form onsubmit="event.preventDefault(); alert('New mock order created successfully!'); closeModal('addOrderModal');">
+                <div class="form-group">
+                    <label for="cust_name">Customer Full Name *</label>
+                    <input type="text" id="cust_name" class="form-control" placeholder="e.g. John Doe" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="cust_username">Telegram Username</label>
+                    <input type="text" id="cust_username" class="form-control" placeholder="e.g. johndoe">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ord_product">Product *</label>
+                        <select id="ord_product" class="form-control" required>
+                            <option value="">-- Select --</option>
+                            <option value="canva">Canva Pro</option>
+                            <option value="netflix">Netflix Premium</option>
+                            <option value="youtube">Youtube Premium</option>
+                            <option value="spotify">Spotify Premium</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="ord_amount">Amount (IDR) *</label>
+                        <input type="text" id="ord_amount" class="form-control" placeholder="e.g. 25000" required>
+                    </div>
+                </div>
+                
+                <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addOrderModal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

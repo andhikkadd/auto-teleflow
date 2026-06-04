@@ -61,16 +61,7 @@ async def main():
     # 2. Populate In-Memory State from DB settings
     await load_settings_into_state()
     
-    # 3. Boot Telethon client (interactive console prompt if first login)
-    me = await telegram_client.start_client()
-    
-    # 4. Register commands event listeners
-    await commands.register_handlers()
-    
-    # 5. Start scheduler background task
-    scheduler_task = asyncio.create_task(scheduler.start_scheduler())
-    
-    # 6. Start Uvicorn FastAPI Server if enabled
+    # 3. Start Uvicorn FastAPI Server if enabled (Do this first so panel is accessible immediately)
     web_task = None
     uvicorn_server = None
     if config.ENABLE_WEB_PANEL:
@@ -84,6 +75,26 @@ async def main():
         )
         uvicorn_server = uvicorn.Server(uvicorn_config)
         web_task = asyncio.create_task(uvicorn_server.serve())
+        
+    # 4. Boot Telethon client (interactive console prompt if first login)
+    client_started = False
+    scheduler_task = None
+    backup_task = None
+    try:
+        # We start the client connection. If it blocks or fails, we log it but keep the server running.
+        me = await telegram_client.start_client()
+        client_started = True
+        
+        # Register commands event listeners
+        await commands.register_handlers()
+        
+        # Start scheduler background task
+        scheduler_task = asyncio.create_task(scheduler.start_scheduler())
+        # Start auto-backup scheduler background task
+        backup_task = asyncio.create_task(scheduler.start_auto_backup_scheduler())
+    except Exception as e:
+        logger.error(f"Could not initialize Telegram client: {e}. Running in Web-Panel only mode.")
+        logger.info("Please configure real API_ID / API_HASH and run main.py interactively to log in.")
     
     # Setup graceful shutdown handlers
     loop = asyncio.get_running_loop()
@@ -107,16 +118,26 @@ async def main():
                 logger.error(f"Error shutting down web panel: {ex}")
                 
         # Cancel scheduler
-        logger.info("Stopping background scheduler...")
-        scheduler_task.cancel()
-        try:
-            await scheduler_task
-        except asyncio.CancelledError:
-            pass
+        if scheduler_task:
+            logger.info("Stopping background scheduler...")
+            scheduler_task.cancel()
+            try:
+                await scheduler_task
+            except asyncio.CancelledError:
+                pass
+                
+        # Cancel auto-backup scheduler
+        if backup_task:
+            logger.info("Stopping auto-backup scheduler...")
+            backup_task.cancel()
+            try:
+                await backup_task
+            except asyncio.CancelledError:
+                pass
             
         # Disconnect client
         client = telegram_client.get_client()
-        if client.is_connected():
+        if client and client.is_connected():
             logger.info("Disconnecting Telegram client...")
             await client.disconnect()
             
@@ -133,11 +154,19 @@ async def main():
             except NotImplementedError:
                 pass
     
-    # Keep application alive while Telethon client is connected
+    # Keep application alive while Telethon client is connected, or via web panel loop
     client = telegram_client.get_client()
     try:
-        logger.info("Userbot is running and listening for commands 24/7.")
-        await client.run_until_disconnected()
+        if client_started and client.is_connected():
+            logger.info("Userbot is running and listening for commands 24/7.")
+            await client.run_until_disconnected()
+        elif web_task:
+            logger.info("Web control panel is running. Keep alive loop started.")
+            await web_task
+        else:
+            logger.info("Neither Telegram client nor Web Panel is active. Keep alive loop started.")
+            while True:
+                await asyncio.sleep(3600)
     except (KeyboardInterrupt, SystemExit):
         logger.info("System interruption received.")
     finally:

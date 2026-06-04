@@ -1,11 +1,13 @@
 import asyncio
 import logging
 import random
+import os
 from datetime import datetime, timedelta
 from utils import state
 import config
 from services.wave_service import wave_svc
 from services.settings_service import settings_svc
+import telegram_client
 
 logger = logging.getLogger("Scheduler")
 
@@ -74,3 +76,61 @@ async def start_scheduler():
         except Exception as e:
             logger.exception(f"Unexpected error in scheduler loop: {e}")
             await asyncio.sleep(30)
+
+async def start_auto_backup_scheduler():
+    """Background task to run automatic backups every 2 days."""
+    logger.info("Initializing auto-backup scheduler (every 2 days)...")
+    
+    # Wait 5 minutes after startup before the first check
+    await asyncio.sleep(300)
+    
+    while True:
+        try:
+            client = telegram_client.get_client()
+            if not client or not client.is_connected() or not await client.is_user_authorized():
+                await asyncio.sleep(60)
+                continue
+                
+            last_backup_str = await settings_svc.get_setting("last_auto_backup_time", "")
+            
+            run_backup = False
+            if not last_backup_str:
+                run_backup = True
+            else:
+                try:
+                    last_backup_dt = datetime.fromisoformat(last_backup_str)
+                    if datetime.now() - last_backup_dt >= timedelta(days=2):
+                        run_backup = True
+                except Exception:
+                    run_backup = True
+                    
+            if run_backup:
+                logger.info("Triggering scheduled automatic backup...")
+                from services.backup_service import backup_svc
+                
+                backup_path = await backup_svc.create_backup()
+                
+                report_target = await settings_svc.get_setting("report_target", config.REPORT_TARGET)
+                if report_target:
+                    caption_msg = (
+                        f"🔒 **Auto-Backup Terenkripsi (2 Harian)**\n"
+                        f"• **Waktu**: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`\n"
+                        f"• **Berkas**: `{os.path.basename(backup_path)}`"
+                    )
+                    await client.send_file(report_target, backup_path, caption=caption_msg)
+                    logger.info(f"Auto-backup successfully sent to {report_target}")
+                else:
+                    logger.warning("Auto-backup skipped: report_target settings is empty.")
+                    
+                backup_svc.clean_backup_file(backup_path)
+                await settings_svc.set_setting("last_auto_backup_time", datetime.now().isoformat())
+                
+        except asyncio.CancelledError:
+            logger.info("Auto-backup scheduler cancelled.")
+            break
+        except Exception as e:
+            logger.error(f"Error in auto-backup scheduler loop: {e}", exc_info=True)
+            
+        # Check every 1 hour
+        await asyncio.sleep(3600)
+

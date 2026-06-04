@@ -46,9 +46,13 @@ async def main():
     campaigns_path = os.path.join("campaigns", "main.py")
     tasks.append(run_app(campaigns_path, "campaigns"))
     
-    # 2. TODO: Run Assistant application once implemented
-    # assistant_path = os.path.join("assistant", "main.py")
-    # tasks.append(run_app(assistant_path, "assistant"))
+    # 2. Run Assistant application
+    assistant_path = os.path.join("assistant", "main.py")
+    tasks.append(run_app(assistant_path, "assistant"))
+    
+    # 3. Run Portal Gateway
+    portal_path = "portal.py"
+    tasks.append(run_app(portal_path, "portal"))
     
     # Run all configured tasks concurrently
     await asyncio.gather(*tasks)
