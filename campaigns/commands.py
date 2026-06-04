@@ -101,6 +101,8 @@ async def register_handlers():
                 await handle_templates(event)
             elif cmd == "!addtemplate":
                 await handle_addtemplate(event, arg_str)
+            elif cmd == "!addtemplates":
+                await handle_addtemplates(event, arg_str)
             elif cmd == "!deltemplate":
                 await handle_deltemplate(event, arg_str)
             elif cmd == "!preview":
@@ -167,6 +169,7 @@ async def handle_help(event):
         "**Manajemen Template:**\n"
         "• `!templates` - Daftar template pesan promo.\n"
         "• `!addtemplate <pesan>` - Tambah template pesan baru.\n"
+        "• `!addtemplates <pesan1>||<pesan2>||...` - Tambah banyak template sekaligus, dipisahkan oleh `||`.\n"
         "• `!deltemplate <id>` - Hapus template pesan.\n"
         "• `!preview` - Tinjau template promo acak.\n"
         "• `!test <id|username> [pesan_kustom]` - Kirim test ke grup tertentu.\n\n"
@@ -331,6 +334,29 @@ async def handle_addtemplate(event, arg_str):
         
     t_id = await template_svc.add_template(arg_str)
     await event.reply(f"✅ **Template pesan berhasil ditambahkan** (ID: `{t_id}`).")
+    
+async def handle_addtemplates(event, arg_str):
+    """Add multiple templates separated by '||'.
+    Example: !addtemplates Pesan 1||Pesan 2||Pesan 3
+    """
+    if not arg_str:
+        await event.reply("⚠️ Gunakan: `!addtemplates <pesan1>||<pesan2>||...`")
+        return
+    templates = [t.strip() for t in arg_str.split('||') if t.strip()]
+    if not templates:
+        await event.reply("⚠️ Tidak ada template yang valid untuk ditambahkan.")
+        return
+    added_ids = []
+    for tmpl in templates:
+        try:
+            t_id = await template_svc.add_template(tmpl)
+            added_ids.append(str(t_id))
+        except Exception as e:
+            logger.exception(f"Error adding template: {e}")
+    if added_ids:
+        await event.reply(f"✅ **{len(added_ids)} template berhasil ditambahkan** (IDs: `{', '.join(added_ids)}`).")
+    else:
+        await event.reply("❌ Tidak ada template yang berhasil ditambahkan.")
 
 async def handle_deltemplate(event, arg_str):
     if not arg_str or not arg_str.isdigit():
