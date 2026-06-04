@@ -54,6 +54,37 @@ async def main():
     portal_path = "portal.py"
     tasks.append(run_app(portal_path, "portal"))
     
+    # 4. Run automated free SSH tunnel (pinggy.io) if ssh client is available
+    import shutil
+    if shutil.which("ssh"):
+        print("[runner] SSH client detected. Initiating secure web tunnel via pinggy.io...", flush=True)
+        async def run_tunnel():
+            tunnel_cmd = [
+                "ssh", "-o", "StrictHostKeyChecking=no", 
+                "-o", "ServerAliveInterval=30", 
+                "-R", "80:127.0.0.1:4765", "free@pinggy.io"
+            ]
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    *tunnel_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    decoded_line = line.decode('utf-8', errors='replace').rstrip('\r\n')
+                    if "http://" in decoded_line or "https://" in decoded_line:
+                        print(f"\n[tunnel] 🌍 PUBLIC WEB PANEL URL: {decoded_line.strip()}\n", flush=True)
+                    elif any(k in decoded_line.lower() for k in ["pinggy", "tunnel", "connected"]):
+                        print(f"[tunnel] {decoded_line.strip()}", flush=True)
+            except Exception as e:
+                print(f"[tunnel] Failed to start tunnel: {e}", flush=True)
+        tasks.append(run_tunnel())
+    else:
+        print("[runner] SSH client not available in this container. Bypassing public tunnel.", flush=True)
+    
     # Run all configured tasks concurrently
     await asyncio.gather(*tasks)
 
