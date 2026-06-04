@@ -341,6 +341,57 @@ async def proxy_request(request: Request, target_url: str):
             if k.lower() not in ("content-length", "transfer-encoding", "content-encoding"):
                 res_headers[k] = v
                 
+        # Check if content type is HTML to inject the floating gateway button
+        content_type = res.headers.get("content-type", "").lower()
+        if "text/html" in content_type:
+            try:
+                body_content = await res.aread()
+                html_str = body_content.decode("utf-8", errors="replace")
+                
+                # Floating button HTML structure with sleek modern design
+                floating_btn = """
+                <!-- Floating Switch Bot Panel Button -->
+                <div id="portal-floating-button" style="position: fixed; bottom: 25px; right: 25px; z-index: 999999;">
+                    <a href="/portal" style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 54px;
+                        height: 54px;
+                        border-radius: 50%;
+                        background: linear-gradient(135deg, #6366f1 0%, #0ea5e9 100%);
+                        color: white;
+                        text-decoration: none;
+                        box-shadow: 0 8px 32px 0 rgba(99, 102, 241, 0.4);
+                        border: 1px solid rgba(255, 255, 255, 0.15);
+                        backdrop-filter: blur(4px);
+                        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                        font-size: 24px;
+                        cursor: pointer;
+                    " 
+                    onmouseover="this.style.transform='scale(1.1) rotate(15deg)'; this.style.boxShadow='0 12px 40px 0 rgba(99, 102, 241, 0.6)';" 
+                    onmouseout="this.style.transform='scale(1) rotate(0deg)'; this.style.boxShadow='0 8px 32px 0 rgba(99, 102, 241, 0.4)';"
+                    title="Menu Portal Gateway">
+                        ⚙️
+                    </a>
+                </div>
+                """
+                if "</body>" in html_str:
+                    html_str = html_str.replace("</body>", f"{floating_btn}</body>")
+                else:
+                    html_str += floating_btn
+                
+                # Close the HTTPX response since we consumed it
+                await res.aclose()
+                
+                return HTMLResponse(
+                    content=html_str,
+                    status_code=res.status_code,
+                    headers=res_headers
+                )
+            except Exception as e:
+                logger.warning(f"Failed to inject floating portal button: {e}")
+                
         return StreamingResponse(
             res.aiter_bytes(),
             status_code=res.status_code,
