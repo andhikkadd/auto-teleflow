@@ -100,6 +100,15 @@ async def csrf_and_auth_middleware(request: Request, call_next):
 
     # 2. CSRF Token Verification for POST requests
     if request.method == "POST":
+        # Consuming the stream directly in middleware will exhaust it.
+        # We read it once, then mock request._receive to allow subsequent reads.
+        body = await request.body()
+        
+        async def receive():
+            return {"type": "http.request", "body": body, "more_body": False}
+            
+        request._receive = receive
+        
         form_data = await request.form()
         token = form_data.get("csrf_token")
         session_token = request.session.get("csrf_token")
