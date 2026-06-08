@@ -114,6 +114,16 @@ class GroupService:
             if not entity:
                 entity = await client.get_entity(clean_target)
                 
+            # Automatically join the group/channel if it is a public channel/supergroup and we are not in it
+            from telethon.tl.types import Channel
+            from telethon.tl.functions.channels import JoinChannelRequest
+            if isinstance(entity, Channel):
+                if getattr(entity, 'left', True):
+                    logger.info(f"Userbot is not in public group/channel {clean_target}. Attempting to join...")
+                    await client(JoinChannelRequest(entity))
+                    # Refresh the entity after joining to get updated info (e.g. left=False)
+                    entity = await client.get_entity(entity)
+                
             title = getattr(entity, "title", "No Title")
             
             from telethon.utils import get_peer_id
