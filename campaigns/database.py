@@ -169,6 +169,23 @@ class Database:
                 except Exception as ex:
                     logger.warning(f"Failed to add column {col_name}: {ex}")
 
+        # Dynamic migrations check: check if the columns are in templates table
+        template_columns_to_add = {
+            "is_override": "INTEGER DEFAULT 0",
+            "override_until": "TEXT"
+        }
+
+        tpl_info_rows = await self.fetchall("PRAGMA table_info(templates)")
+        existing_tpl_columns = {row["name"] for row in tpl_info_rows}
+
+        for col_name, col_def in template_columns_to_add.items():
+            if col_name not in existing_tpl_columns:
+                logger.info(f"Migrating database: Adding column '{col_name}' to 'templates' table...")
+                try:
+                    await self.execute(f"ALTER TABLE templates ADD COLUMN {col_name} {col_def}")
+                except Exception as ex:
+                    logger.warning(f"Failed to add column {col_name} to templates: {ex}")
+
         # Insert default settings if they do not exist
         now_str = datetime.now().isoformat()
         await self.execute(

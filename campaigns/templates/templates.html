@@ -11,8 +11,9 @@
 </div>
 
 <div class="row">
-    <!-- Add template form -->
+    <!-- Left column: Create regular template & toggle override -->
     <div class="col-lg-5 mb-4">
+        <!-- Create regular template card -->
         <div class="glass-card mb-4">
             <h5 class="fw-bold mb-3"><i class="bi bi-plus-circle text-primary me-2"></i>Create Template</h5>
             <form action="/templates/add" method="post">
@@ -29,52 +30,49 @@
             </form>
         </div>
 
+        <!-- Global Override toggle status card -->
         <div class="glass-card">
-            <h5 class="fw-bold mb-3"><i class="bi bi-clock-history text-warning me-2"></i>Override Promo Sementara</h5>
-            <p class="text-secondary small mb-3">Aktifkan fitur ini jika Anda ingin menyiarkan pesan promosi kustom khusus (seperti promo streaming, event terbatas, dll.) secara penuh menggantikan seluruh template biasa.</p>
+            <h5 class="fw-bold mb-3"><i class="bi bi-shield-exclamation text-warning me-2"></i>Status Override Mode</h5>
+            <p class="text-secondary small mb-3">Aktifkan untuk mengalihkan pengiriman pesan hanya menggunakan template override aktif (jika ada). Jika dinonaktifkan atau semua template override telah kedaluwarsa, sistem otomatis menggunakan template biasa.</p>
             
             {% if is_currently_overridden %}
             <div class="alert alert-warning bg-warning bg-opacity-10 border border-warning border-opacity-20 rounded p-3 mb-3 d-flex align-items-center gap-2">
                 <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
                 <div class="small text-warning" style="line-height: 1.4;">
-                    <strong>Override Sedang Aktif!</strong><br>
-                    Hanya template kustom di bawah yang dikirim hingga: <strong>{{ override_until | replace('T', ' ') }}</strong>
+                    <strong>Override Aktif & Berjalan!</strong><br>
+                    Sistem saat ini menyiarkan template override sementara.
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-secondary bg-secondary bg-opacity-10 border border-secondary border-opacity-20 rounded p-3 mb-3 d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle-fill text-secondary fs-5"></i>
+                <div class="small text-secondary" style="line-height: 1.4;">
+                    <strong>Override Tidak Berjalan</strong><br>
+                    Sistem saat ini menyiarkan template regular/biasa.
                 </div>
             </div>
             {% endif %}
 
-            <form action="/templates/override" method="post">
+            <form action="/templates/toggle-override" method="post">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                
                 <div class="form-check form-switch mb-3">
-                    <input class="form-check-input" type="checkbox" id="override_active" name="active" value="1" {% if override_active == '1' %}checked{% endif %}>
+                    <input class="form-check-input" type="checkbox" id="override_active" name="active" value="1" {% if override_active == '1' %}checked{% endif %} onchange="this.form.submit()">
                     <label class="form-check-label text-secondary small fw-semibold" for="override_active">Aktifkan Override Sementara</label>
                 </div>
-
-                <div class="mb-3">
-                    <label for="override_text" class="form-label text-secondary small fw-semibold">Teks Promo Sementara</label>
-                    <textarea class="form-control form-control-custom" id="override_text" name="text" rows="6" placeholder="Masukkan teks promosi kustom Anda..." required>{{ override_text }}</textarea>
-                </div>
-
-                <div class="mb-3">
-                    <label for="override_until" class="form-label text-secondary small fw-semibold">Berlaku Sampai Tanggal & Jam</label>
-                    <input type="datetime-local" class="form-control form-control-custom" id="override_until" name="until" value="{{ override_until }}" required>
-                </div>
-
-                <button type="submit" class="btn btn-custom btn-warning-custom w-100"><i class="bi bi-shield-lock me-1"></i>Simpan & Terapkan Override</button>
             </form>
         </div>
     </div>
 
-    <!-- Templates list cards -->
+    <!-- Right column: Lists of regular & override templates -->
     <div class="col-lg-7 mb-4">
-        <div class="glass-card">
-            <h5 class="fw-bold mb-4"><i class="bi bi-folder-symlink text-primary me-2"></i>Saved Templates</h5>
+        <!-- Regular templates list -->
+        <div class="glass-card mb-4">
+            <h5 class="fw-bold mb-4"><i class="bi bi-folder-symlink text-primary me-2"></i>Saved Templates (Regular)</h5>
             
             {% if not templates %}
-            <div class="text-center py-5 text-secondary">
-                <i class="bi bi-card-text" style="font-size: 3rem;"></i>
-                <p class="mt-3">No templates found. Please add a template on the left panel.</p>
+            <div class="text-center py-4 text-secondary">
+                <i class="bi bi-card-text" style="font-size: 2.5rem;"></i>
+                <p class="mt-2 small">No templates found. Please add a template on the left panel.</p>
             </div>
             {% else %}
             <div class="d-flex flex-column gap-3">
@@ -89,6 +87,61 @@
                     </div>
                     <div class="text-end mt-3 pt-2 border-top border-secondary border-opacity-50">
                         <button class="btn btn-danger-custom btn-sm btn-custom" onclick="triggerDeleteModal('{{ t.id }}')">
+                            <i class="bi bi-trash me-1"></i>Delete
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Temporary Override templates list & add form -->
+        <div class="glass-card">
+            <h5 class="fw-bold mb-3"><i class="bi bi-clock-history text-warning me-2"></i>Templates Override Sementara</h5>
+            <p class="text-secondary small mb-4">Tambahkan pesan promosi kustom sementara yang hanya berlaku pada rentang waktu tertentu.</p>
+            
+            <!-- Form to add override template -->
+            <form action="/templates/override/add" method="post" class="mb-4 pb-4 border-bottom border-secondary border-opacity-30">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="mb-3">
+                    <label for="override_text" class="form-label text-secondary small fw-semibold">Teks Promo Sementara</label>
+                    <textarea class="form-control form-control-custom" id="override_text" name="text" rows="4" placeholder="Masukkan teks promosi kustom sementara..." required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label for="override_until" class="form-label text-secondary small fw-semibold">Berlaku Sampai Tanggal & Jam</label>
+                    <input type="datetime-local" class="form-control form-control-custom" id="override_until" name="until" required>
+                </div>
+                <button type="submit" class="btn btn-custom btn-warning-custom w-100"><i class="bi bi-plus-lg me-1"></i>Simpan Template Override</button>
+            </form>
+
+            <!-- List of override templates -->
+            <h6 class="fw-bold text-secondary mb-3 small uppercase">Daftar Template Override</h6>
+            {% if not override_templates %}
+            <div class="text-center py-4 text-secondary">
+                <i class="bi bi-calendar-x" style="font-size: 2rem;"></i>
+                <p class="mt-2 small">Belum ada template override kustom.</p>
+            </div>
+            {% else %}
+            <div class="d-flex flex-column gap-3">
+                {% for ot in override_templates %}
+                <div class="border border-secondary rounded p-3 bg-dark bg-opacity-20 d-flex flex-column justify-content-between">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-50">
+                            <span class="text-secondary small fw-bold"><i class="bi bi-hash me-1"></i>Override ID #{{ ot.id }}</span>
+                            
+                            <span class="badge-custom {% if ot.override_until > current_time or not ot.override_until %}badge-active{% else %}badge-skipped{% endif %}">
+                                {% if ot.override_until > current_time or not ot.override_until %}
+                                    <i class="bi bi-clock-fill me-1"></i>Aktif s/d {{ ot.override_until | replace('T', ' ') }}
+                                {% else %}
+                                    <i class="bi bi-x-circle me-1"></i>Kedaluwarsa ({{ ot.override_until | replace('T', ' ') }})
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div style="white-space: pre-wrap;" class="text-secondary small font-monospace">{{ ot.text }}</div>
+                    </div>
+                    <div class="text-end mt-3 pt-2 border-top border-secondary border-opacity-50">
+                        <button class="btn btn-danger-custom btn-sm btn-custom" onclick="triggerDeleteModal('{{ ot.id }}')">
                             <i class="bi bi-trash me-1"></i>Delete
                         </button>
                     </div>

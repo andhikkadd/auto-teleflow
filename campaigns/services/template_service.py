@@ -6,8 +6,11 @@ logger = logging.getLogger("TemplateService")
 
 class TemplateService:
     @staticmethod
-    async def get_all_templates() -> list:
-        return await db.fetchall("SELECT * FROM templates ORDER BY id ASC")
+    async def get_all_templates(is_override: int = 0) -> list:
+        return await db.fetchall(
+            "SELECT * FROM templates WHERE is_override = ? ORDER BY id ASC",
+            (is_override,)
+        )
 
     @staticmethod
     async def get_active_templates(include_override: bool = True) -> list:
@@ -15,26 +18,17 @@ class TemplateService:
             from services.settings_service import settings_svc
             override_active = await settings_svc.get_setting("override_template_active", "0")
             if override_active == "1":
-                override_until_str = await settings_svc.get_setting("override_template_until", "")
-                if override_until_str:
-                    try:
-                        override_until = datetime.fromisoformat(override_until_str)
-                        if datetime.now() < override_until:
-                            override_text = await settings_svc.get_setting("override_template_text", "")
-                            if override_text.strip():
-                                return [{
-                                    "id": 0,
-                                    "text": override_text.strip(),
-                                    "is_active": 1,
-                                    "created_at": override_until_str,
-                                    "updated_at": override_until_str
-                                }]
-                    except Exception as e:
-                        logger.warning(f"Error parsing override_template_until: {e}")
-        return await db.fetchall("SELECT * FROM templates WHERE is_active = 1")
+                now_str = datetime.now().isoformat()
+                override_templates = await db.fetchall(
+                    "SELECT * FROM templates WHERE is_override = 1 AND is_active = 1 AND override_until > ?",
+                    (now_str,)
+                )
+                if override_templates:
+                    return override_templates
+        return await db.fetchall("SELECT * FROM templates WHERE (is_override = 0 OR is_override IS NULL) AND is_active = 1")
 
     @staticmethod
-    async def add_template(text: str) -> int:
+    async def add_template(text: str, is_override: int = 0, override_until: str = None) -> int:
         if not text:
             raise ValueError("Template content cannot be empty.")
         stripped = text.strip()
@@ -45,10 +39,11 @@ class TemplateService:
             
         now_str = datetime.now().isoformat()
         template_id = await db.execute(
-            "INSERT INTO templates (text, is_active, created_at, updated_at) VALUES (?, 1, ?, ?)",
-            (stripped, now_str, now_str)
+            "INSERT INTO templates (text, is_override, override_until, is_active, created_at, updated_at) "
+            "VALUES (?, ?, ?, 1, ?, ?)",
+            (stripped, is_override, override_until, now_str, now_str)
         )
-        logger.info(f"Added template ID {template_id}")
+        logger.info(f"Added template ID {template_id} (is_override={is_override})")
         return template_id
 
     @staticmethod
