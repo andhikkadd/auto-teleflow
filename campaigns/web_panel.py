@@ -357,6 +357,74 @@ async def post_test_group(request: Request, id: int, custom_msg: Optional[str] =
         
     return RedirectResponse(url="/groups", status_code=303)
 
+@app.get("/groups/search-telegram")
+async def search_telegram_groups(q: str = ""):
+    if not q or not q.strip():
+        return JSONResponse({"status": "success", "results": []})
+        
+    client = telegram_client.get_client()
+    if not client or not client.is_connected():
+        return JSONResponse({"status": "error", "message": "Telegram client is not active/connected."}, status_code=400)
+        
+    from telethon.tl.functions.contacts import SearchRequest
+    try:
+        result = await client(SearchRequest(q=q.strip(), limit=50))
+        discovered = []
+        for chat in result.chats:
+            is_group = False
+            # Check if this chat object is a public group
+            if hasattr(chat, 'megagroup') and chat.megagroup:
+                is_group = True
+            elif hasattr(chat, 'broadcast') and not chat.broadcast:
+                is_group = True
+                
+            # Keep only public groups with usernames
+            if is_group and getattr(chat, 'username', None):
+                discovered.append({
+                    "title": chat.title,
+                    "username": f"@{chat.username}"
+                })
+        return JSONResponse({"status": "success", "results": discovered})
+    except Exception as e:
+        logger.error(f"Failed searching groups on Telegram: {e}", exc_info=True)
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+@app.post("/groups/join-and-add")
+async def post_join_and_add_group(request: Request, username: str = Form(...)):
+    try:
+        active_clients = telegram_client.get_active_clients()
+        if not active_clients:
+            raise ValueError("No active Telegram client connected.")
+            
+        clean_username = username.strip().replace(" ", "")
+        if not clean_username.startswith("@") and not "t.me/" in clean_username:
+            clean_username = "@" + clean_username
+            
+        from telethon.tl.functions.channels import JoinChannelRequest
+        joined_any = False
+        join_errors = []
+        
+        for idx, client in enumerate(active_clients):
+            try:
+                await client(JoinChannelRequest(clean_username))
+                joined_any = True
+            except Exception as e:
+                logger.warning(f"Client #{idx+1} failed to join {clean_username}: {e}")
+                join_errors.append(str(e))
+                
+        if not joined_any and join_errors:
+            raise ValueError(f"Failed to join group with any account. Errors: {', '.join(set(join_errors))}")
+            
+        # Add to local target database
+        res = await group_svc.add_group(clean_username)
+        if res["status"] == "exists":
+            return JSONResponse({"status": "success", "message": "Joined group successfully, but it was already in the database."})
+        else:
+            return JSONResponse({"status": "success", "message": f"Successfully joined and added group: {res['group']['title']}."})
+    except Exception as e:
+        logger.error(f"Error in join-and-add: {e}", exc_info=True)
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
 @app.get("/templates")
 async def get_templates(request: Request):
     # Load override settings first to perform auto-cleanup if expired
@@ -365,8 +433,18 @@ async def get_templates(request: Request):
     
     if override_active == "1" and override_until:
         try:
-            until_dt = datetime.fromisoformat(override_until)
-            if datetime.now() >= until_dt:
+            if override_until.endswith('Z') or '+' in override_until:
+                from datetime import timezone
+                iso_str = override_until[:-1] + "+00:00" if override_until.endswith('Z') else override_until
+                until_dt = datetime.fromisoformat(iso_str)
+                if until_dt.tzinfo is None:
+                    until_dt = until_dt.replace(tzinfo=timezone.utc)
+                is_expired = datetime.now(timezone.utc) >= until_dt
+            else:
+                until_dt = datetime.fromisoformat(override_until)
+                is_expired = datetime.now() >= until_dt
+                
+            if is_expired:
                 # Expiration hit: auto-cleanup
                 await settings_svc.set_setting("override_template_active", "0")
                 await settings_svc.set_setting("override_template_until", "")
@@ -383,9 +461,16 @@ async def get_templates(request: Request):
     is_currently_overridden = False
     if override_active == "1" and override_until:
         try:
-            until_dt = datetime.fromisoformat(override_until)
-            if datetime.now() < until_dt:
-                is_currently_overridden = True
+            if override_until.endswith('Z') or '+' in override_until:
+                from datetime import timezone
+                iso_str = override_until[:-1] + "+00:00" if override_until.endswith('Z') else override_until
+                until_dt = datetime.fromisoformat(iso_str)
+                if until_dt.tzinfo is None:
+                    until_dt = until_dt.replace(tzinfo=timezone.utc)
+                is_currently_overridden = datetime.now(timezone.utc) < until_dt
+            else:
+                until_dt = datetime.fromisoformat(override_until)
+                is_currently_overridden = datetime.now() < until_dt
         except ValueError:
             pass
 
@@ -434,18 +519,30 @@ async def post_add_template(request: Request, text: str = Form(...)):
 async def post_save_override_settings(
     request: Request,
     active: Optional[str] = Form(None),
-    until: str = Form("")
+    until: str = Form(""),
+    until_utc: Optional[str] = Form(None)
 ):
     try:
         is_active = "1" if active else "0"
         
         # Validation checks
         if is_active == "1":
-            if not until:
+            target_until = until_utc if until_utc else until
+            if not target_until:
                 raise ValueError("Tanggal kedaluwarsa override harus diisi.")
             try:
-                until_dt = datetime.fromisoformat(until)
-                if until_dt <= datetime.now():
+                if target_until.endswith('Z') or '+' in target_until:
+                    from datetime import timezone
+                    iso_str = target_until[:-1] + "+00:00" if target_until.endswith('Z') else target_until
+                    until_dt = datetime.fromisoformat(iso_str)
+                    if until_dt.tzinfo is None:
+                        until_dt = until_dt.replace(tzinfo=timezone.utc)
+                    is_expired = until_dt <= datetime.now(timezone.utc)
+                else:
+                    until_dt = datetime.fromisoformat(target_until)
+                    is_expired = until_dt <= datetime.now()
+
+                if is_expired:
                     raise ValueError("Tanggal kedaluwarsa harus di masa depan.")
             except ValueError as ve:
                 if "di masa depan" in str(ve):
@@ -453,7 +550,7 @@ async def post_save_override_settings(
                 raise ValueError("Format tanggal tidak valid.")
                 
         await settings_svc.set_setting("override_template_active", is_active)
-        await settings_svc.set_setting("override_template_until", until)
+        await settings_svc.set_setting("override_template_until", until_utc if (is_active == "1" and until_utc) else until)
         
         if is_active == "1":
             request.session["flash_success"] = "Mode override promo diaktifkan."

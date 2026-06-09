@@ -10,130 +10,215 @@
     </div>
 </div>
 
-<div class="row">
-    <!-- Add group form -->
-    <div class="col-lg-4 mb-4">
-        <div class="glass-card">
-            <h5 class="fw-bold mb-3"><i class="bi bi-plus-circle text-primary me-2"></i>Add Target Group</h5>
-            <form action="/groups/add" method="post">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <div class="mb-3">
-                    <label for="raw_input" class="form-label text-secondary small fw-semibold">Group Username or Link</label>
-                    <input type="text" class="form-control form-control-custom" id="raw_input" name="raw_input" placeholder="@group_username or t.me/link" required>
-                    <div class="form-text text-muted small mt-1">Supports standard links, join links, or raw usernames.</div>
+<style>
+    .nav-pills .nav-link {
+        color: rgba(255, 255, 255, 0.6) !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 8px !important;
+        margin-right: 10px;
+        transition: all 0.3s ease;
+        font-weight: 500;
+    }
+    .nav-pills .nav-link:hover {
+        color: #fff !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+    }
+    .nav-pills .nav-link.active {
+        color: #fff !important;
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
+        border-color: rgba(59, 130, 246, 0.3) !important;
+        box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+    }
+</style>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-pills mb-4" id="groupTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="list-tab" data-bs-toggle="tab" data-bs-target="#list-content" type="button" role="tab" aria-controls="list-content" aria-selected="true">
+            <i class="bi bi-list me-2"></i>Daftar Grup Promosi
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="discover-tab" data-bs-toggle="tab" data-bs-target="#discover-content" type="button" role="tab" aria-controls="discover-content" aria-selected="false">
+            <i class="bi bi-compass me-2"></i>Cari Grup Baru (Telegram Search)
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="groupTabsContent">
+    <!-- Tab 1: List Content -->
+    <div class="tab-pane fade show active" id="list-content" role="tabpanel" aria-labelledby="list-tab">
+        <div class="row">
+            <!-- Add group form -->
+            <div class="col-lg-4 mb-4">
+                <div class="glass-card">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-plus-circle text-primary me-2"></i>Add Target Group</h5>
+                    <form action="/groups/add" method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <label for="raw_input" class="form-label text-secondary small fw-semibold">Group Username or Link</label>
+                            <input type="text" class="form-control form-control-custom" id="raw_input" name="raw_input" placeholder="@group_username or t.me/link" required>
+                            <div class="form-text text-muted small mt-1">Supports standard links, join links, or raw usernames.</div>
+                        </div>
+                        <button type="submit" class="btn btn-custom btn-accent w-100"><i class="bi bi-plus-lg me-1"></i>Resolve &amp; Add</button>
+                    </form>
                 </div>
-                <button type="submit" class="btn btn-custom btn-accent w-100"><i class="bi bi-plus-lg me-1"></i>Resolve &amp; Add</button>
-            </form>
+            </div>
+
+            <!-- Groups list table -->
+            <div class="col-lg-8 mb-4">
+                <div class="glass-card">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-list text-primary me-2"></i>Target Channels List</h5>
+                    
+                    {% if not groups %}
+                    <div class="text-center py-5 text-secondary">
+                        <i class="bi bi-folder2-open" style="font-size: 3rem;"></i>
+                        <p class="mt-3">No target groups found. Add one on the left panel.</p>
+                    </div>
+                    {% else %}
+                    <div class="table-responsive">
+                        <table class="table table-custom">
+                            <thead>
+                                <tr>
+                                    <th>DB ID</th>
+                                    <th>Group Title</th>
+                                    <th>Status</th>
+                                    <th>Fail Streak</th>
+                                    <th>Last Delivery</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for g in groups %}
+                                <tr>
+                                    <td><code>{{ g.id }}</code></td>
+                                    <td>
+                                        <div class="fw-semibold">{{ g.title or 'Unknown Title' }}</div>
+                                        <div class="text-muted small text-truncate" style="max-width: 180px;">{{ g.username }}</div>
+                                        {% if g.last_error %}
+                                        <div class="text-danger small mt-1 text-truncate" style="max-width: 180px;" title="{{ g.last_error }}">
+                                            <i class="bi bi-exclamation-circle me-1"></i>{{ g.last_error }}
+                                        </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if g.is_skipped == 1 or g.status == 'SKIPPED' %}
+                                        <span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Skipped</span>
+                                        {% elif g.status == 'ACTIVE' %}
+                                        <span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                        {% elif g.status == 'FLOOD_WAIT' %}
+                                        <span class="badge-custom badge-flood" title="Cooldown until {{ g.cooldown_until }}"><i class="bi bi-clock-history me-1"></i>Flood</span>
+                                        {% elif g.status == 'UNVERIFIED' %}
+                                        <span class="badge-custom badge-flood"><i class="bi bi-question-circle me-1"></i>Unverified</span>
+                                        {% else %}
+                                        <span class="badge-custom badge-error" title="{{ g.auto_skip_reason or g.last_error }}"><i class="bi bi-exclamation-octagon me-1"></i>{{ g.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="{% if g.fail_streak > 0 %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ g.fail_streak }} / 3</span>
+                                    </td>
+                                    <td class="small">
+                                        {% if g.last_success_at %}
+                                        <div class="text-success"><i class="bi bi-check me-1"></i>{{ g.last_success_at.split('T')[0] }}</div>
+                                        <div class="text-muted small">{{ g.last_success_at.split('T')[1][:5] }}</div>
+                                        {% else %}
+                                        <span class="text-muted">Never</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="dropdown">
+                                            <button class="btn btn-secondary-custom btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                Actions
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-dark">
+                                                {% if g.is_skipped == 1 %}
+                                                <li>
+                                                    <form action="/groups/{{ g.id }}/unskip" method="post" class="m-0">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                        <button type="submit" class="dropdown-item text-success"><i class="bi bi-play me-2"></i>Unskip</button>
+                                                    </form>
+                                                </li>
+                                                {% else %}
+                                                <li>
+                                                    <form action="/groups/{{ g.id }}/skip" method="post" class="m-0">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                        <button type="submit" class="dropdown-item text-secondary"><i class="bi bi-skip-end me-2"></i>Skip</button>
+                                                    </form>
+                                                </li>
+                                                {% endif %}
+                                                <li>
+                                                    <form action="/groups/{{ g.id }}/reset" method="post" class="m-0">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                                        <button type="submit" class="dropdown-item text-info"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset Health</button>
+                                                    </form>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item text-warning" onclick="triggerTestModal('{{ g.id }}', '{{ g.title }}')">
+                                                        <i class="bi bi-send me-2"></i>Test Msg
+                                                    </button>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <button class="dropdown-item text-danger" onclick="triggerDeleteModal('{{ g.id }}', '{{ g.title }}')">
+                                                        <i class="bi bi-trash me-2"></i>Delete
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </div>
-
-    <!-- Groups list table -->
-    <div class="col-lg-8 mb-4">
-        <div class="glass-card">
-            <h5 class="fw-bold mb-3"><i class="bi bi-list text-primary me-2"></i>Target Channels List</h5>
+    
+    <!-- Tab 2: Discover Content -->
+    <div class="tab-pane fade" id="discover-content" role="tabpanel" aria-labelledby="discover-tab">
+        <div class="glass-card mb-4">
+            <h5 class="fw-bold mb-3"><i class="bi bi-search text-primary me-2"></i>Temukan Grup Promosi Baru</h5>
+            <p class="text-secondary small mb-4">
+                Cari grup publik di Telegram berdasarkan kata kunci (contoh: <code>jual beli</code>, <code>komunitas</code>, <code>bisnis</code>). 
+                Hasil pencarian akan disaring untuk menampilkan grup publik saja. Anda dapat langsung bergabung dan menambahkannya ke daftar promosi.
+            </p>
             
-            {% if not groups %}
-            <div class="text-center py-5 text-secondary">
-                <i class="bi bi-folder2-open" style="font-size: 3rem;"></i>
-                <p class="mt-3">No target groups found. Add one on the left panel.</p>
+            <!-- Quick Suggestions -->
+            <div class="d-flex flex-wrap gap-2 mb-4">
+                <span class="text-secondary small align-self-center me-2">Rekomendasi Kata Kunci:</span>
+                <button class="btn btn-secondary-custom btn-sm" onclick="setSearchQuery('jual beli')">Jual Beli</button>
+                <button class="btn btn-secondary-custom btn-sm" onclick="setSearchQuery('komunitas')">Komunitas</button>
+                <button class="btn btn-secondary-custom btn-sm" onclick="setSearchQuery('bisnis online')">Bisnis Online</button>
+                <button class="btn btn-secondary-custom btn-sm" onclick="setSearchQuery('promosi')">Promosi</button>
+                <button class="btn btn-secondary-custom btn-sm" onclick="setSearchQuery('crypto indonesia')">Crypto Indonesia</button>
             </div>
-            {% else %}
-            <div class="table-responsive">
-                <table class="table table-custom">
-                    <thead>
-                        <tr>
-                            <th>DB ID</th>
-                            <th>Group Title</th>
-                            <th>Status</th>
-                            <th>Fail Streak</th>
-                            <th>Last Delivery</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for g in groups %}
-                        <tr>
-                            <td><code>{{ g.id }}</code></td>
-                            <td>
-                                <div class="fw-semibold">{{ g.title or 'Unknown Title' }}</div>
-                                <div class="text-muted small text-truncate" style="max-width: 180px;">{{ g.username }}</div>
-                                {% if g.last_error %}
-                                <div class="text-danger small mt-1 text-truncate" style="max-width: 180px;" title="{{ g.last_error }}">
-                                    <i class="bi bi-exclamation-circle me-1"></i>{{ g.last_error }}
-                                </div>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if g.is_skipped == 1 or g.status == 'SKIPPED' %}
-                                <span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Skipped</span>
-                                {% elif g.status == 'ACTIVE' %}
-                                <span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
-                                {% elif g.status == 'FLOOD_WAIT' %}
-                                <span class="badge-custom badge-flood" title="Cooldown until {{ g.cooldown_until }}"><i class="bi bi-clock-history me-1"></i>Flood</span>
-                                {% elif g.status == 'UNVERIFIED' %}
-                                <span class="badge-custom badge-flood"><i class="bi bi-question-circle me-1"></i>Unverified</span>
-                                {% else %}
-                                <span class="badge-custom badge-error" title="{{ g.auto_skip_reason or g.last_error }}"><i class="bi bi-exclamation-octagon me-1"></i>{{ g.status }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <span class="{% if g.fail_streak > 0 %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ g.fail_streak }} / 3</span>
-                            </td>
-                            <td class="small">
-                                {% if g.last_success_at %}
-                                <div class="text-success"><i class="bi bi-check me-1"></i>{{ g.last_success_at.split('T')[0] }}</div>
-                                <div class="text-muted small">{{ g.last_success_at.split('T')[1][:5] }}</div>
-                                {% else %}
-                                <span class="text-muted">Never</span>
-                                {% endif %}
-                            </td>
-                            <td class="text-end">
-                                <div class="dropdown">
-                                    <button class="btn btn-secondary-custom btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                        Actions
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-dark">
-                                        {% if g.is_skipped == 1 %}
-                                        <li>
-                                            <form action="/groups/{{ g.id }}/unskip" method="post" class="m-0">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                <button type="submit" class="dropdown-item text-success"><i class="bi bi-play me-2"></i>Unskip</button>
-                                            </form>
-                                        </li>
-                                        {% else %}
-                                        <li>
-                                            <form action="/groups/{{ g.id }}/skip" method="post" class="m-0">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                <button type="submit" class="dropdown-item text-secondary"><i class="bi bi-skip-end me-2"></i>Skip</button>
-                                            </form>
-                                        </li>
-                                        {% endif %}
-                                        <li>
-                                            <form action="/groups/{{ g.id }}/reset" method="post" class="m-0">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                <button type="submit" class="dropdown-item text-info"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset Health</button>
-                                            </form>
-                                        </li>
-                                        <li>
-                                            <button class="dropdown-item text-warning" onclick="triggerTestModal('{{ g.id }}', '{{ g.title }}')">
-                                                <i class="bi bi-send me-2"></i>Test Msg
-                                            </button>
-                                        </li>
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li>
-                                            <button class="dropdown-item text-danger" onclick="triggerDeleteModal('{{ g.id }}', '{{ g.title }}')">
-                                                <i class="bi bi-trash me-2"></i>Delete
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            
+            <form id="discoverSearchForm" class="row g-3">
+                <div class="col-md-9 col-sm-8">
+                    <input type="text" class="form-control form-control-custom" id="search_query" placeholder="Masukkan kata kunci pencarian..." required>
+                </div>
+                <div class="col-md-3 col-sm-4">
+                    <button type="submit" class="btn btn-custom btn-accent w-100" id="searchBtn">
+                        <span class="spinner-border spinner-border-sm d-none me-2" role="status" id="searchSpinner"></span>
+                        <i class="bi bi-search me-1" id="searchIcon"></i>Cari Grup
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="glass-card">
+            <h5 class="fw-bold mb-4"><i class="bi bi-compass text-primary me-2"></i>Hasil Pencarian</h5>
+            
+            <div id="searchResults" class="table-responsive" style="min-height: 150px;">
+                <div class="text-center py-5 text-secondary" id="searchPlaceholder">
+                    <i class="bi bi-compass" style="font-size: 3rem;"></i>
+                    <p class="mt-3">Masukkan kata kunci di atas dan klik cari untuk memulai pencarian.</p>
+                </div>
             </div>
-            {% endif %}
         </div>
     </div>
 </div>
@@ -201,6 +286,159 @@
         document.getElementById('deleteTargetTitle').innerText = title;
         document.getElementById('deleteForm').action = '/groups/' + id + '/delete';
         new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    function setSearchQuery(query) {
+        const input = document.getElementById('search_query');
+        if (input) {
+            input.value = query;
+            // Automatically trigger form submit
+            document.getElementById('discoverSearchForm').dispatchEvent(new Event('submit'));
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Persist active tab across reloads
+        const activeTabId = localStorage.getItem("activeGroupTab");
+        if (activeTabId) {
+            const tabEl = document.querySelector(`#${activeTabId}`);
+            if (tabEl) {
+                const tab = new bootstrap.Tab(tabEl);
+                tab.show();
+            }
+        }
+
+        const tabLinks = document.querySelectorAll('button[data-bs-toggle="tab"]');
+        tabLinks.forEach(link => {
+            link.addEventListener("shown.bs.tab", function(e) {
+                localStorage.setItem("activeGroupTab", e.target.id);
+            });
+        });
+
+        // Handle search form submission
+        const searchForm = document.getElementById("discoverSearchForm");
+        if (searchForm) {
+            searchForm.addEventListener("submit", async function(e) {
+                e.preventDefault();
+                const query = document.getElementById("search_query").value.trim();
+                if (!query) return;
+
+                // UI feedback: loading state
+                const btn = document.getElementById("searchBtn");
+                const spinner = document.getElementById("searchSpinner");
+                const icon = document.getElementById("searchIcon");
+                btn.disabled = true;
+                spinner.classList.remove("d-none");
+                icon.classList.add("d-none");
+
+                const resultsContainer = document.getElementById("searchResults");
+                resultsContainer.innerHTML = `
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="text-secondary mt-3">Mencari grup di Telegram...</p>
+                    </div>
+                `;
+
+                try {
+                    const response = await fetch(`/groups/search-telegram?q=${encodeURIComponent(query)}`);
+                    const data = await response.json();
+                    
+                    if (data.status === "success" && data.results && data.results.length > 0) {
+                        let html = `
+                            <table class="table table-custom">
+                                <thead>
+                                    <tr>
+                                        <th>Nama Grup</th>
+                                        <th>Username</th>
+                                        <th class="text-end">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+                        
+                        data.results.forEach(item => {
+                            html += `
+                                <tr>
+                                    <td><div class="fw-semibold text-white">${item.title}</div></td>
+                                    <td><code>${item.username}</code></td>
+                                    <td class="text-end">
+                                        <button class="btn btn-custom btn-accent btn-sm" onclick="joinAndAdd('${item.username}', this)">
+                                            <span class="spinner-border spinner-border-sm d-none me-1" role="status"></span>
+                                            <i class="bi bi-plus-lg me-1"></i>Join &amp; Tambah
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                        
+                        html += `
+                                </tbody>
+                            </table>
+                        `;
+                        resultsContainer.innerHTML = html;
+                    } else {
+                        const msg = data.message || "Tidak ada grup publik yang ditemukan untuk kata kunci tersebut.";
+                        resultsContainer.innerHTML = `
+                            <div class="text-center py-5 text-secondary">
+                                <i class="bi bi-x-circle text-danger" style="font-size: 3rem;"></i>
+                                <p class="mt-3">${msg}</p>
+                            </div>
+                        `;
+                    }
+                } catch (err) {
+                    resultsContainer.innerHTML = `
+                        <div class="text-center py-5 text-secondary">
+                            <i class="bi bi-exclamation-triangle text-danger" style="font-size: 3rem;"></i>
+                            <p class="mt-3">Gagal melakukan pencarian: ${err.message}</p>
+                        </div>
+                    `;
+                } finally {
+                    btn.disabled = false;
+                    spinner.classList.add("d-none");
+                    icon.classList.remove("d-none");
+                }
+            });
+        }
+    });
+
+    async function joinAndAdd(username, buttonEl) {
+        // Show spinner in button
+        const spinner = buttonEl.querySelector(".spinner-border");
+        const icon = buttonEl.querySelector(".bi");
+        buttonEl.disabled = true;
+        if (spinner) spinner.classList.remove("d-none");
+        if (icon) icon.classList.add("d-none");
+
+        try {
+            const formData = new FormData();
+            formData.append("username", username);
+            // Get CSRF Token from the existing hidden input
+            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+            formData.append("csrf_token", csrfToken);
+
+            const response = await fetch("/groups/join-and-add", {
+                method: "POST",
+                body: formData
+            });
+            const data = await response.json();
+
+            if (data.status === "success") {
+                buttonEl.className = "btn btn-custom btn-secondary-custom btn-sm";
+                buttonEl.innerHTML = `<i class="bi bi-check-lg text-success me-1"></i>Sudah Ditambah`;
+            } else {
+                alert("Gagal bergabung: " + (data.message || "Error"));
+                buttonEl.disabled = false;
+                if (spinner) spinner.classList.add("d-none");
+                if (icon) icon.classList.remove("d-none");
+            }
+        } catch (err) {
+            alert("Gagal: " + err.message);
+            buttonEl.disabled = false;
+            if (spinner) spinner.classList.add("d-none");
+            if (icon) icon.classList.remove("d-none");
+        }
     }
 </script>
 {% endblock %}

@@ -21,8 +21,18 @@ class TemplateService:
                 override_until_str = await settings_svc.get_setting("override_template_until", "")
                 if override_until_str:
                     try:
-                        override_until = datetime.fromisoformat(override_until_str)
-                        if datetime.now() < override_until:
+                        if override_until_str.endswith('Z') or '+' in override_until_str:
+                            from datetime import timezone
+                            iso_str = override_until_str[:-1] + "+00:00" if override_until_str.endswith('Z') else override_until_str
+                            until_dt = datetime.fromisoformat(iso_str)
+                            if until_dt.tzinfo is None:
+                                until_dt = until_dt.replace(tzinfo=timezone.utc)
+                            is_active = datetime.now(timezone.utc) < until_dt
+                        else:
+                            until_dt = datetime.fromisoformat(override_until_str)
+                            is_active = datetime.now() < until_dt
+
+                        if is_active:
                             # Return override templates strictly (can be empty if none created)
                             return await db.fetchall("SELECT * FROM templates WHERE is_override = 1 AND is_active = 1")
                         else:

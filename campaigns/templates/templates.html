@@ -129,7 +129,7 @@
                         <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
                         <div class="small text-warning" style="line-height: 1.4;">
                             <strong>Override Aktif & Berjalan!</strong><br>
-                            Template regular mati. Hanya merotasi template override hingga: <strong>{{ override_until | replace('T', ' ') }}</strong>
+                            Template regular mati. Hanya merotasi template override hingga: <strong id="override_until_display">{{ override_until }}</strong>
                         </div>
                     </div>
                     {% else %}
@@ -142,8 +142,9 @@
                     </div>
                     {% endif %}
 
-                    <form action="/templates/save-override-settings" method="post">
+                    <form action="/templates/save-override-settings" method="post" id="overrideForm">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" id="override_until_utc" name="until_utc" value="">
                         
                         <div class="form-check form-switch mb-3">
                             <input class="form-check-input" type="checkbox" id="override_active" name="active" value="1" {% if override_active == '1' %}checked{% endif %}>
@@ -152,7 +153,7 @@
 
                         <div class="mb-3">
                             <label for="override_until" class="form-label text-secondary small fw-semibold">Aktif Sampai Tanggal & Jam</label>
-                            <input type="datetime-local" class="form-control form-control-custom" id="override_until" name="until" value="{{ override_until }}">
+                            <input type="datetime-local" class="form-control form-control-custom" id="override_until" name="until">
                         </div>
 
                         <button type="submit" class="btn btn-custom btn-warning-custom w-100"><i class="bi bi-shield-lock me-1"></i>Simpan Pengaturan Override</button>
@@ -261,6 +262,57 @@
                 localStorage.setItem("activeTemplateTab", e.target.id);
             });
         });
+
+        // Timezone conversion for override until
+        const overrideUntilRaw = "{{ override_until }}";
+        const untilInput = document.getElementById("override_until");
+        if (overrideUntilRaw && untilInput) {
+            let date;
+            if (overrideUntilRaw.endsWith("Z") || overrideUntilRaw.includes("+")) {
+                date = new Date(overrideUntilRaw);
+            } else {
+                // Parse naive string (fallback)
+                date = new Date(overrideUntilRaw + "Z");
+            }
+            if (!isNaN(date.getTime())) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                untilInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+        }
+
+        // Display string timezone conversion
+        const displayEl = document.getElementById("override_until_display");
+        if (displayEl && displayEl.textContent.trim()) {
+            const rawVal = displayEl.textContent.trim();
+            let date;
+            if (rawVal.endsWith("Z") || rawVal.includes("+")) {
+                date = new Date(rawVal);
+            } else {
+                date = new Date(rawVal + "Z");
+            }
+            if (!isNaN(date.getTime())) {
+                // Format in user's locale
+                displayEl.textContent = date.toLocaleString();
+            }
+        }
+
+        // On form submit, convert the local datetime to UTC ISO string
+        const overrideForm = document.getElementById("overrideForm");
+        if (overrideForm) {
+            overrideForm.addEventListener("submit", function(e) {
+                const localVal = untilInput.value;
+                if (localVal) {
+                    const localDate = new Date(localVal);
+                    if (!isNaN(localDate.getTime())) {
+                        document.getElementById("override_until_utc").value = localDate.toISOString();
+                    }
+                }
+            });
+        }
     });
 </script>
 {% endblock %}
