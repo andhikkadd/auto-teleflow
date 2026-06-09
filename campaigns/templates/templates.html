@@ -13,7 +13,7 @@
 <div class="row">
     <!-- Add template form -->
     <div class="col-lg-5 mb-4">
-        <div class="glass-card">
+        <div class="glass-card mb-4">
             <h5 class="fw-bold mb-3"><i class="bi bi-plus-circle text-primary me-2"></i>Create Template</h5>
             <form action="/templates/add" method="post">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -26,6 +26,42 @@
                     </div>
                 </div>
                 <button type="submit" class="btn btn-custom btn-accent w-100"><i class="bi bi-plus-lg me-1"></i>Save Template</button>
+            </form>
+        </div>
+
+        <div class="glass-card">
+            <h5 class="fw-bold mb-3"><i class="bi bi-clock-history text-warning me-2"></i>Override Promo Sementara</h5>
+            <p class="text-secondary small mb-3">Aktifkan fitur ini jika Anda ingin menyiarkan pesan promosi kustom khusus (seperti promo streaming, event terbatas, dll.) secara penuh menggantikan seluruh template biasa.</p>
+            
+            {% if is_currently_overridden %}
+            <div class="alert alert-warning bg-warning bg-opacity-10 border border-warning border-opacity-20 rounded p-3 mb-3 d-flex align-items-center gap-2">
+                <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+                <div class="small text-warning" style="line-height: 1.4;">
+                    <strong>Override Sedang Aktif!</strong><br>
+                    Hanya template kustom di bawah yang dikirim hingga: <strong>{{ override_until | replace('T', ' ') }}</strong>
+                </div>
+            </div>
+            {% endif %}
+
+            <form action="/templates/override" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="override_active" name="active" value="1" {% if override_active == '1' %}checked{% endif %}>
+                    <label class="form-check-label text-secondary small fw-semibold" for="override_active">Aktifkan Override Sementara</label>
+                </div>
+
+                <div class="mb-3">
+                    <label for="override_text" class="form-label text-secondary small fw-semibold">Teks Promo Sementara</label>
+                    <textarea class="form-control form-control-custom" id="override_text" name="text" rows="6" placeholder="Masukkan teks promosi kustom Anda..." required>{{ override_text }}</textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label for="override_until" class="form-label text-secondary small fw-semibold">Berlaku Sampai Tanggal & Jam</label>
+                    <input type="datetime-local" class="form-control form-control-custom" id="override_until" name="until" value="{{ override_until }}" required>
+                </div>
+
+                <button type="submit" class="btn btn-custom btn-warning-custom w-100"><i class="bi bi-shield-lock me-1"></i>Simpan & Terapkan Override</button>
             </form>
         </div>
     </div>

@@ -10,7 +10,27 @@ class TemplateService:
         return await db.fetchall("SELECT * FROM templates ORDER BY id ASC")
 
     @staticmethod
-    async def get_active_templates() -> list:
+    async def get_active_templates(include_override: bool = True) -> list:
+        if include_override:
+            from services.settings_service import settings_svc
+            override_active = await settings_svc.get_setting("override_template_active", "0")
+            if override_active == "1":
+                override_until_str = await settings_svc.get_setting("override_template_until", "")
+                if override_until_str:
+                    try:
+                        override_until = datetime.fromisoformat(override_until_str)
+                        if datetime.now() < override_until:
+                            override_text = await settings_svc.get_setting("override_template_text", "")
+                            if override_text.strip():
+                                return [{
+                                    "id": 0,
+                                    "text": override_text.strip(),
+                                    "is_active": 1,
+                                    "created_at": override_until_str,
+                                    "updated_at": override_until_str
+                                }]
+                    except Exception as e:
+                        logger.warning(f"Error parsing override_template_until: {e}")
         return await db.fetchall("SELECT * FROM templates WHERE is_active = 1")
 
     @staticmethod

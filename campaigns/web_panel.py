@@ -360,11 +360,31 @@ async def post_test_group(request: Request, id: int, custom_msg: Optional[str] =
 @app.get("/templates")
 async def get_templates(request: Request):
     templates_list = await template_svc.get_all_templates()
+    
+    # Load override settings
+    override_active = await settings_svc.get_setting("override_template_active", "0")
+    override_text = await settings_svc.get_setting("override_template_text", "")
+    override_until = await settings_svc.get_setting("override_template_until", "")
+    
+    # Check if override is currently active in real-time
+    is_currently_overridden = False
+    if override_active == "1" and override_until:
+        try:
+            until_dt = datetime.fromisoformat(override_until)
+            if datetime.now() < until_dt:
+                is_currently_overridden = True
+        except ValueError:
+            pass
+
     context = {
         "request": request,
         "is_logged_in": True,
         "active_page": "templates",
         "templates": templates_list,
+        "override_active": override_active,
+        "override_text": override_text,
+        "override_until": override_until,
+        "is_currently_overridden": is_currently_overridden,
         **get_flash_context(request)
     }
     return templates.TemplateResponse(request, "templates.html", context)
@@ -379,6 +399,44 @@ async def post_add_template(request: Request, text: str = Form(...)):
         
     return RedirectResponse(url="/templates", status_code=303)
 
+@app.post("/templates/override")
+async def post_save_override(
+    request: Request,
+    active: Optional[str] = Form(None),
+    text: str = Form(""),
+    until: str = Form("")
+):
+    try:
+        is_active = "1" if active else "0"
+        
+        # Validation checks
+        if is_active == "1":
+            if not text.strip():
+                raise ValueError("Override text template cannot be empty when active.")
+            if not until:
+                raise ValueError("Please specify a valid expiration date/time.")
+            try:
+                until_dt = datetime.fromisoformat(until)
+                if until_dt <= datetime.now():
+                    raise ValueError("Expiration date/time must be in the future.")
+            except ValueError as ve:
+                if "in the future" in str(ve):
+                    raise
+                raise ValueError("Invalid date/time format.")
+                
+        await settings_svc.set_setting("override_template_active", is_active)
+        await settings_svc.set_setting("override_template_text", text.strip())
+        await settings_svc.set_setting("override_template_until", until)
+        
+        if is_active == "1":
+            request.session["flash_success"] = "Temporary promo override activated successfully."
+        else:
+            request.session["flash_success"] = "Temporary promo override disabled."
+    except Exception as e:
+        request.session["flash_danger"] = f"Failed to save override template: {e}"
+        
+    return RedirectResponse(url="/templates", status_code=303)
+
 @app.post("/templates/{id}/delete")
 async def post_delete_template(request: Request, id: int):
     template = await db.fetchone("SELECT * FROM templates WHERE id = ?", (id,))
@@ -387,8 +445,8 @@ async def post_delete_template(request: Request, id: int):
         return RedirectResponse(url="/templates", status_code=303)
 
     try:
-        # Check that we have at least one active template remaining
-        active_templates = await template_svc.get_active_templates()
+        # Check that we have at least one active template remaining in DB
+        active_templates = await template_svc.get_active_templates(include_override=False)
         if len(active_templates) <= 1:
             request.session["flash_danger"] = "Abort: At least one active promotion template must remain in the system."
         else:
