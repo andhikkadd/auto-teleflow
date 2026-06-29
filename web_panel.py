@@ -833,6 +833,7 @@ async def post_restore_backup(
         await telegram_client.disconnect_all_clients()
         
         # 2. Re-initialize database
+        db.connect()
         await db.initialize_schema()
         
         # 3. Reload settings

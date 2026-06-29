@@ -156,12 +156,12 @@ async def main():
     # Keep application alive while Telethon client is connected, or via web panel loop
     client = telegram_client.get_client()
     try:
-        if client_started and client.is_connected():
-            logger.info("Userbot is running and listening for commands 24/7.")
-            await client.run_until_disconnected()
-        elif web_task:
+        if web_task:
             logger.info("Web control panel is running. Keep alive loop started.")
             await web_task
+        elif client_started and client.is_connected():
+            logger.info("Userbot is running and listening for commands 24/7.")
+            await client.run_until_disconnected()
         else:
             logger.info("Neither Telegram client nor Web Panel is active. Keep alive loop started.")
             while True:
