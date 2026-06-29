@@ -648,6 +648,7 @@ async def post_save_settings(
     delay_between_groups: int = Form(...),
     send_report: Optional[str] = Form(None),
     report_target: str = Form(...),
+    report_frequency: str = Form("every_wave"),
     run_wave_on_start: Optional[str] = Form(None),
     control_group: str = Form(""),
     ghost_auditing_enabled: Optional[str] = Form(None),
@@ -694,6 +695,8 @@ async def post_save_settings(
             ghost_auditing_limit=ghost_auditing_limit,
             ghost_auditing_action=ghost_auditing_action
         )
+        
+        await settings_svc.set_setting("report_frequency", report_frequency)
         
         await settings_svc.set_setting("human_mode_enabled", "1" if human_mode_enabled is not None else "0")
         await settings_svc.set_setting("human_mode_sleep_start", human_mode_sleep_start.strip())
@@ -904,15 +907,17 @@ async def get_sessions(request: Request):
         except Exception:
             pass
             
-        proxy_row = await db.fetchone("SELECT proxy_url FROM session_proxies WHERE session_name = ?", (name,))
+        proxy_row = await db.fetchone("SELECT proxy_url, is_active FROM session_proxies WHERE session_name = ?", (name,))
         proxy_str = proxy_row["proxy_url"] if proxy_row else None
+        is_active = proxy_row["is_active"] != 0 if proxy_row and proxy_row["is_active"] is not None else True
             
         sessions_data.append({
             "name": name,
             "is_default": is_default,
             "authorized": authorized,
             "user_details": user_details,
-            "proxy": proxy_str
+            "proxy": proxy_str,
+            "is_active": is_active
         })
         
     context = {
@@ -1048,6 +1053,33 @@ async def post_set_proxy(
             
     except Exception as e:
         request.session["flash_danger"] = f"Failed to set proxy: {e}"
+        
+    return RedirectResponse(url="/sessions", status_code=303)
+
+@app.post("/sessions/toggle-active")
+async def post_toggle_active(
+    request: Request,
+    session_name: str = Form(...),
+    is_active: int = Form(...)
+):
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url="/login", status_code=303)
+        
+    try:
+        now_str = datetime.now().isoformat()
+        # Find if row exists to keep proxy_url
+        row = await db.fetchone("SELECT proxy_url FROM session_proxies WHERE session_name = ?", (session_name,))
+        proxy_url = row["proxy_url"] if row else ""
+        
+        await db.execute("""
+            INSERT OR REPLACE INTO session_proxies (session_name, proxy_url, is_active, updated_at)
+            VALUES (?, ?, ?, ?)
+        """, (session_name, proxy_url, is_active, now_str))
+        
+        status_text = "diaktifkan" if is_active == 1 else "dinonaktifkan"
+        request.session["flash_success"] = f"Bot session '{session_name}' berhasil {status_text}."
+    except Exception as e:
+        request.session["flash_danger"] = f"Gagal mengubah status aktif session: {e}"
         
     return RedirectResponse(url="/sessions", status_code=303)
 

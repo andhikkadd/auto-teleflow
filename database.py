@@ -195,6 +195,22 @@ class Database:
                 except Exception as ex:
                     logger.warning(f"Failed to add column {col_name} to templates: {ex}")
 
+        # Dynamic migrations check: check if the columns are in session_proxies table
+        proxies_columns_to_add = {
+            "is_active": "INTEGER DEFAULT 1"
+        }
+
+        try:
+            proxies_info_rows = await self.fetchall("PRAGMA table_info(session_proxies)")
+            existing_proxies_columns = {row["name"] for row in proxies_info_rows}
+
+            for col_name, col_def in proxies_columns_to_add.items():
+                if col_name not in existing_proxies_columns:
+                    logger.info(f"Migrating database: Adding column '{col_name}' to 'session_proxies' table...")
+                    await self.execute(f"ALTER TABLE session_proxies ADD COLUMN {col_name} {col_def}")
+        except Exception as ex:
+            logger.warning(f"Failed to check/add columns to session_proxies: {ex}")
+
         # Insert default settings if they do not exist
         now_str = datetime.now().isoformat()
         await self.execute(

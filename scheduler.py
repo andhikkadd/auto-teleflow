@@ -11,6 +11,53 @@ import telegram_client
 
 logger = logging.getLogger("Scheduler")
 
+async def send_daily_summary_report(client):
+    """Generates and dispatches a daily summary report of all waves run since the last report."""
+    from database import db
+    from utils import resolve_target_entity
+    
+    report_target_raw = await settings_svc.get_setting("report_target", "")
+    if not report_target_raw:
+        logger.warning("Daily summary report skipped: report_target settings is empty.")
+        return
+        
+    last_report_str = await settings_svc.get_setting("last_daily_report_time", "")
+    if not last_report_str:
+        # Default to 24 hours ago
+        last_report_dt = datetime.now() - timedelta(days=1)
+        last_report_str = last_report_dt.isoformat()
+        
+    # Fetch all wave logs since last report
+    logs = await db.fetchall(
+        "SELECT * FROM wave_logs WHERE started_at >= ? ORDER BY id ASC", 
+        (last_report_str,)
+    )
+    
+    total_waves = len(logs)
+    if total_waves == 0:
+        logger.info("No waves run since the last daily report. Skipping daily report.")
+        return
+        
+    total_success = sum(log["success_count"] for log in logs if log["success_count"] is not None)
+    total_fail = sum(log["fail_count"] for log in logs if log["fail_count"] is not None)
+    
+    resolved_target = await resolve_target_entity(client, report_target_raw)
+    
+    report_msg = (
+        f"📋 **Laporan Rangkuman Harian Bot Promo**\n"
+        f"• **Rentang**: `{datetime.fromisoformat(last_report_str).strftime('%Y-%m-%d %H:%M')} s/d {datetime.now().strftime('%Y-%m-%d %H:%M')}`\n"
+        f"• **Total Wave**: `{total_waves} Sesi`\n"
+        f"• **Hasil Akumulasi**: `{total_success} Sukses` / `{total_fail} Gagal`\n\n"
+        f"💤 Bot sekarang memasuki mode tidur malam. Selamat beristirahat!"
+    )
+    
+    try:
+        await client.send_message(resolved_target, report_msg)
+        await settings_svc.set_setting("last_daily_report_time", datetime.now().isoformat())
+        logger.info("Daily summary report sent successfully.")
+    except Exception as e:
+        logger.error(f"Failed to send daily summary report: {e}")
+
 async def start_scheduler():
     """Initializes and runs the scheduler loop."""
     logger.info("Initializing background scheduler...")
@@ -88,6 +135,27 @@ async def start_scheduler():
                             
                             state.next_run_time = wakeup_time
                             logger.info(f"Human Mode Enabled: Currently in sleep hours ({sleep_start} - {sleep_end}). Scheduler will sleep until {state.next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                            
+                            # Check if Daily Sleep Report should be sent (only if report_frequency is daily_sleep and send_report is '1')
+                            try:
+                                send_report_val = await settings_svc.get_setting("send_report", "1")
+                                report_frequency = await settings_svc.get_setting("report_frequency", "every_wave")
+                                if send_report_val == "1" and report_frequency == "daily_sleep":
+                                    # Send only once every 12 hours
+                                    last_report_str = await settings_svc.get_setting("last_daily_report_time", "")
+                                    should_report = True
+                                    if last_report_str:
+                                        last_report_dt = datetime.fromisoformat(last_report_str)
+                                        if now - last_report_dt < timedelta(hours=12):
+                                            should_report = False
+                                    
+                                    if should_report:
+                                        active_clients = telegram_client.get_active_clients()
+                                        if active_clients:
+                                            logger.info("Human Mode: Sending Daily Sleep Report before going to sleep...")
+                                            await send_daily_summary_report(active_clients[0])
+                            except Exception as daily_err:
+                                logger.error(f"Error triggering daily sleep report: {daily_err}")
             except Exception as human_err:
                 logger.error(f"Error checking Human Mode in scheduler: {human_err}")
 

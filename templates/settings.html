@@ -47,6 +47,15 @@
                 </div>
 
                 <div class="mb-3">
+                    <label for="report_frequency" class="form-label text-secondary small fw-semibold">Report Delivery Frequency</label>
+                    <select class="form-select form-select-custom" id="report_frequency" name="report_frequency" style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <option value="every_wave" {% if settings.report_frequency == 'every_wave' or not settings.report_frequency %}selected{% endif %}>Setiap Selesai Sesi Wave</option>
+                        <option value="daily_sleep" {% if settings.report_frequency == 'daily_sleep' %}selected{% endif %}>Rangkuman Harian (Saat Masuk Jam Tidur)</option>
+                    </select>
+                    <div class="form-text text-muted small mt-1">Frekuensi pengiriman laporan. Mode Harian (Sebelum Tidur) sangat disarankan untuk menghindari spam chat dari Master Bot.</div>
+                </div>
+
+                <div class="mb-3">
                     <label for="report_target" class="form-label text-secondary small fw-semibold">Report &amp; Backup Telegram Target</label>
                     <input type="text" class="form-control form-control-custom" id="report_target" name="report_target" value="{{ settings.report_target }}" placeholder="me, ID chat, @username, atau Link Invite Channel Private" required>
                     <div class="form-text text-muted small mt-1">Username (@username), ID chat, atau Link Invite Channel Private (misal: `https://t.me/+4DirMfRHtfUzNjNl`) tempat bot mengirimkan file backup dan laporan wave.</div>

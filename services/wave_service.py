@@ -276,7 +276,8 @@ class WaveService:
             
             # 7. Dispatch Report if requested
             send_report_val = await settings_svc.get_setting("send_report", "1")
-            if send_report_val == "1":
+            report_frequency = await settings_svc.get_setting("report_frequency", "every_wave")
+            if send_report_val == "1" and report_frequency == "every_wave":
                 report_target_raw = await settings_svc.get_setting("report_target", config.REPORT_TARGET)
                 if report_target_raw:
                     from utils import resolve_target_entity

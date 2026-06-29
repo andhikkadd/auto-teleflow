@@ -122,9 +122,26 @@ def get_client(session_name: str = None) -> TelegramClient:
         )
     return _clients[session_name]
 
+def is_session_active(session_name: str) -> bool:
+    """Check if a session is enabled in the database."""
+    from database import db
+    if not db.conn:
+        db.connect()
+    try:
+        cursor = db.conn.cursor()
+        cursor.execute("SELECT is_active FROM session_proxies WHERE session_name = ?", (session_name,))
+        row = cursor.fetchone()
+        return row["is_active"] != 0 if row and row["is_active"] is not None else True
+    except Exception:
+        return True
+
 def get_active_clients() -> list[TelegramClient]:
-    """Return a list of all currently authorized/active TelegramClient instances."""
-    return [c for c in _clients.values() if c.is_connected()]
+    """Return a list of all currently authorized/active and enabled TelegramClient instances."""
+    active_clients = []
+    for name, client in list(_clients.items()):
+        if client.is_connected() and is_session_active(name):
+            active_clients.append(client)
+    return active_clients
 
 async def start_all_clients() -> list[TelegramClient]:
     """Start all clients for session files found in the sessions directory."""
