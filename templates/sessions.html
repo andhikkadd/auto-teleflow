@@ -11,31 +11,37 @@
         border-radius: 15px;
         color: #fff;
     }
+
     .status-badge {
         font-size: 0.8rem;
         padding: 0.35em 0.65em;
         border-radius: 50rem;
     }
+
     .bg-neon-success {
         background-color: rgba(46, 204, 113, 0.2);
         color: #2ecc71;
         border: 1px solid rgba(46, 204, 113, 0.4);
     }
+
     .bg-neon-danger {
         background-color: rgba(231, 76, 60, 0.2);
         color: #e74c3c;
         border: 1px solid rgba(231, 76, 60, 0.4);
     }
+
     .phone-input-group {
         border-radius: 10px;
         background: rgba(0, 0, 0, 0.2);
         border: 1px solid rgba(255, 255, 255, 0.1);
     }
+
     .phone-input-group input {
         background: transparent;
         border: none;
         color: #fff;
     }
+
     .phone-input-group input:focus {
         background: transparent;
         box-shadow: none;
@@ -49,7 +55,8 @@
     <!-- Left Column: Active Sessions List -->
     <div class="col-md-7 mb-4">
         <div class="card glass-card shadow">
-            <div class="card-header bg-transparent border-bottom border-secondary d-flex justify-content-between align-items-center">
+            <div
+                class="card-header bg-transparent border-bottom border-secondary d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-people-fill text-info me-2"></i>Aktif Sessions (Multi-Bot)</h5>
                 <span class="badge bg-secondary">{{ sessions|length }} Akun</span>
             </div>
@@ -66,77 +73,85 @@
                         </thead>
                         <tbody>
                             {% if sessions %}
-                                {% for sess in sessions %}
-                                <tr class="border-secondary">
-                                    <td class="ps-4 py-3 font-monospace">
-                                        {{ sess.name }}
-                                        {% if sess.proxy %}
-                                            <div class="text-secondary small font-monospace" style="font-size: 0.72rem; opacity: 0.85;">
-                                                <i class="bi bi-shield-fill-check text-success me-1"></i>
-                                                {{ sess.proxy.split('@')[-1] }}
-                                            </div>
-                                        {% else %}
-                                            <div class="text-muted small" style="font-size: 0.72rem; opacity: 0.6;">
-                                                <i class="bi bi-shield-slash-fill text-warning me-1"></i> No Proxy
-                                            </div>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if sess.authorized %}
-                                            <span class="badge status-badge bg-neon-success mb-1 d-inline-block">
-                                                <i class="bi bi-check-circle-fill me-1"></i> Terkoneksi
-                                            </span>
-                                            <form action="/sessions/toggle-active" method="post" class="m-0 mt-1">
-                                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                <input type="hidden" name="session_name" value="{{ sess.name }}">
-                                                <input type="hidden" name="is_active" id="active_val_{{ sess.name }}" value="{% if sess.is_active %}0{% else %}1{% endif %}">
-                                                <div class="form-check form-switch d-inline-block align-middle">
-                                                    <input class="form-check-input" type="checkbox" role="switch" id="switch_{{ sess.name }}" {% if sess.is_active %}checked{% endif %} onchange="submitToggle('{{ sess.name }}')">
-                                                    <label class="form-check-label text-secondary small" for="switch_{{ sess.name }}" style="font-size: 0.72rem;">
-                                                        {% if sess.is_active %}Aktif{% else %}Mati{% endif %}
-                                                    </label>
-                                                </div>
-                                            </form>
-                                        {% else %}
-                                            <span class="badge status-badge bg-neon-danger">
-                                                <i class="bi bi-exclamation-triangle-fill me-1"></i> Perlu Login
-                                            </span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if sess.authorized and sess.user_details %}
-                                            <span class="text-info fw-bold">{{ sess.user_details.first_name }}</span>
-                                            {% if sess.user_details.username %}
-                                                <small class="text-secondary font-monospace d-block">@{{ sess.user_details.username }}</small>
-                                            {% endif %}
-                                        {% else %}
-                                            <span class="text-muted">—</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end pe-4">
-                                        <button class="btn btn-outline-info btn-sm rounded-pill px-3 me-1" onclick="openProxyModal('{{ sess.name }}', '{{ sess.proxy or '' }}')">
-                                            <i class="bi bi-globe me-1"></i> Proxy
+                            {% for sess in sessions %}
+                            <tr class="border-secondary">
+                                <td class="ps-4 py-3 font-monospace">
+                                    {{ sess.name }}
+                                    {% if sess.proxy %}
+                                    <div class="text-secondary small font-monospace"
+                                        style="font-size: 0.72rem; opacity: 0.85;">
+                                        <i class="bi bi-shield-fill-check text-success me-1"></i>
+                                        {{ sess.proxy.split('@')[-1] }}
+                                    </div>
+                                    {% else %}
+                                    <div class="text-muted small" style="font-size: 0.72rem; opacity: 0.6;">
+                                        <i class="bi bi-shield-slash-fill text-warning me-1"></i> No Proxy
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if sess.authorized %}
+                                    <span class="badge status-badge bg-neon-success mb-1 d-inline-block">
+                                        <i class="bi bi-check-circle-fill me-1"></i> Terkoneksi
+                                    </span>
+                                    <form action="/sessions/toggle-active" method="post" class="m-0 mt-1">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="session_name" value="{{ sess.name }}">
+                                        <input type="hidden" name="is_active" id="active_val_{{ sess.name }}"
+                                            value="{% if sess.is_active %}0{% else %}1{% endif %}">
+                                        <div class="form-check form-switch d-inline-block align-middle">
+                                            <input class="form-check-input" type="checkbox" role="switch"
+                                                id="switch_{{ sess.name }}" {% if sess.is_active %}checked{% endif %}
+                                                onchange="submitToggle('{{ sess.name }}')">
+                                            <label class="form-check-label text-secondary small"
+                                                for="switch_{{ sess.name }}" style="font-size: 0.72rem;">
+                                                {% if sess.is_active %}Aktif{% else %}Mati{% endif %}
+                                            </label>
+                                        </div>
+                                    </form>
+                                    {% else %}
+                                    <span class="badge status-badge bg-neon-danger">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Perlu Login
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if sess.authorized and sess.user_details %}
+                                    <span class="text-info fw-bold">{{ sess.user_details.first_name }}</span>
+                                    {% if sess.user_details.username %}
+                                    <small class="text-secondary font-monospace d-block">@{{ sess.user_details.username
+                                        }}</small>
+                                    {% endif %}
+                                    {% else %}
+                                    <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-outline-info btn-sm rounded-pill px-3 me-1"
+                                        onclick="openProxyModal('{{ sess.name }}', '{{ sess.proxy or '' }}')">
+                                        <i class="bi bi-globe me-1"></i> Proxy
+                                    </button>
+                                    {% if not sess.is_default %}
+                                    <form action="/sessions/delete" method="post" class="d-inline"
+                                        onsubmit="return confirm('Apakah Anda yakin ingin menghapus akun userbot ini?');">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="session_name" value="{{ sess.name }}">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                                            <i class="bi bi-trash3 me-1"></i> Hapus
                                         </button>
-                                        {% if not sess.is_default %}
-                                        <form action="/sessions/delete" method="post" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus akun userbot ini?');">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                            <input type="hidden" name="session_name" value="{{ sess.name }}">
-                                            <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
-                                                <i class="bi bi-trash3 me-1"></i> Hapus
-                                            </button>
-                                        </form>
-                                        {% else %}
-                                        <span class="badge bg-secondary rounded-pill px-3 py-2">Master Bot</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                                    </form>
+                                    {% else %}
+                                    <span class="badge bg-secondary rounded-pill px-3 py-2">Master Bot</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
                             {% else %}
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">
-                                        <i class="bi bi-info-circle me-1"></i> Belum ada session userbot yang ditambahkan.
-                                    </td>
-                                </tr>
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    <i class="bi bi-info-circle me-1"></i> Belum ada session userbot yang ditambahkan.
+                                </td>
+                            </tr>
                             {% endif %}
                         </tbody>
                     </table>
@@ -154,7 +169,8 @@
             <div class="card-body">
                 <div class="alert alert-info bg-transparent border-info text-info small mb-4">
                     <i class="bi bi-info-circle-fill me-2"></i>
-                    Masukkan nomor handphone Telegram Anda dengan format internasional lengkap (contoh: <code>+6281234567890</code>).
+                    Masukkan nomor handphone Telegram Anda dengan format internasional lengkap (contoh:
+                    <code>+6281234567890</code>).
                 </div>
 
                 <!-- AJAX Feedback Container -->
@@ -163,14 +179,18 @@
                 <!-- Step 1: Request Code Form -->
                 <form id="request-code-form">
                     <div class="mb-3">
-                        <label for="phone_number" class="form-label text-secondary small fw-bold">Nomor Handphone (Internasional)</label>
+                        <label for="phone_number" class="form-label text-secondary small fw-bold">Nomor Handphone
+                            (Internasional)</label>
                         <div class="input-group phone-input-group">
-                            <span class="input-group-text bg-transparent border-0 text-secondary"><i class="bi bi-telephone"></i></span>
-                            <input type="text" class="form-control" id="phone_number" name="phone_number" placeholder="+6281234567890" required>
+                            <span class="input-group-text bg-transparent border-0 text-secondary"><i
+                                    class="bi bi-telephone"></i></span>
+                            <input type="text" class="form-control" id="phone_number" name="phone_number"
+                                placeholder="+6281234567890" required>
                         </div>
                     </div>
                     <button type="submit" id="btn-request-code" class="btn btn-primary w-100 rounded-pill py-2">
-                        <span class="spinner-border spinner-border-sm me-2 d-none" id="spinner-request" role="status"></span>
+                        <span class="spinner-border spinner-border-sm me-2 d-none" id="spinner-request"
+                            role="status"></span>
                         <i class="bi bi-send me-1"></i> Kirim Kode Verifikasi
                     </button>
                 </form>
@@ -178,25 +198,34 @@
                 <!-- Step 2: Submit OTP Code (Hidden initially) -->
                 <div id="otp-section" class="d-none mt-4 border-top border-secondary pt-4">
                     <h6 class="text-info mb-3"><i class="bi bi-shield-lock me-1"></i> Verifikasi OTP & Password</h6>
-                    
+
                     <form id="submit-otp-form">
                         <input type="hidden" id="login_phone" name="phone_number">
-                        
+
                         <div class="mb-3">
-                            <label for="otp_code" class="form-label text-secondary small fw-bold">Kode OTP Telegram</label>
-                            <input type="text" class="form-control bg-dark border-secondary text-white font-monospace text-center fs-4 letter-spacing-lg" id="otp_code" name="otp_code" placeholder="12345" required>
-                            <div class="form-text text-secondary small">Masukkan 5 digit kode verifikasi yang Anda terima di aplikasi Telegram.</div>
+                            <label for="otp_code" class="form-label text-secondary small fw-bold">Kode OTP
+                                Telegram</label>
+                            <input type="text"
+                                class="form-control bg-dark border-secondary text-white font-monospace text-center fs-4 letter-spacing-lg"
+                                id="otp_code" name="otp_code" placeholder="12345" required>
+                            <div class="form-text text-secondary small">Masukkan 5 digit kode verifikasi yang Anda
+                                terima di aplikasi Telegram.</div>
                         </div>
 
                         <!-- 2FA Password Field (Always available just in case, but optional) -->
                         <div class="mb-3" id="password-group">
-                            <label for="two_factor_password" class="form-label text-secondary small fw-bold">Password Verifikasi 2 Langkah (2FA)</label>
-                            <input type="password" class="form-control bg-dark border-secondary text-white" id="two_factor_password" name="two_factor_password" placeholder="Kosongkan jika tidak ada">
-                            <div class="form-text text-secondary small">Masukkan password jika akun Anda mengaktifkan 2FA/Verifikasi 2 Langkah.</div>
+                            <label for="two_factor_password" class="form-label text-secondary small fw-bold">Password
+                                Verifikasi 2 Langkah (2FA)</label>
+                            <input type="password" class="form-control bg-dark border-secondary text-white"
+                                id="two_factor_password" name="two_factor_password"
+                                placeholder="Kosongkan jika tidak ada">
+                            <div class="form-text text-secondary small">Masukkan password jika akun Anda mengaktifkan
+                                2FA/Verifikasi 2 Langkah.</div>
                         </div>
 
                         <button type="submit" id="btn-submit-otp" class="btn btn-success w-100 rounded-pill py-2">
-                            <span class="spinner-border spinner-border-sm me-2 d-none" id="spinner-otp" role="status"></span>
+                            <span class="spinner-border spinner-border-sm me-2 d-none" id="spinner-otp"
+                                role="status"></span>
                             <i class="bi bi-check-circle me-1"></i> Autentikasi & Simpan
                         </button>
                     </form>
@@ -214,7 +243,7 @@
     const otpSection = document.getElementById('otp-section');
     const loginPhoneInput = document.getElementById('login_phone');
     const ajaxFeedback = document.getElementById('ajax-feedback');
-    
+
     const spinnerRequest = document.getElementById('spinner-request');
     const spinnerOtp = document.getElementById('spinner-otp');
     const btnRequestCode = document.getElementById('btn-request-code');
@@ -232,7 +261,7 @@
     // Handle Phone Request
     requestCodeForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const phone = document.getElementById('phone_number').value.trim();
         if (!phone.startsWith('+')) {
             showFeedback('danger', 'Nomor HP harus diawali dengan kode negara (contoh: +62)');
@@ -261,7 +290,7 @@
                 showFeedback('success', `Kode OTP berhasil dikirim ke nomor ${data.phone_number}. Periksa aplikasi Telegram Anda.`);
                 loginPhoneInput.value = data.phone_number;
                 otpSection.classList.remove('d-none');
-                
+
                 // Disable first step form to avoid confusion
                 document.getElementById('phone_number').disabled = true;
                 btnRequestCode.disabled = true;
@@ -280,7 +309,7 @@
     // Handle OTP Submission
     submitOtpForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const phone = loginPhoneInput.value;
         const otp = document.getElementById('otp_code').value.trim();
         const pwd = document.getElementById('two_factor_password').value;
@@ -330,13 +359,13 @@
     const proxySessionInput = document.getElementById('proxy_session_name');
     const proxyUrlInput = document.getElementById('proxy_url');
 
-    window.openProxyModal = function(sessionName, currentProxy) {
+    window.openProxyModal = function (sessionName, currentProxy) {
         proxySessionInput.value = sessionName;
         proxyUrlInput.value = currentProxy;
         proxyModal.show();
     };
 
-    window.submitToggle = function(sessionName) {
+    window.submitToggle = function (sessionName) {
         const sw = document.getElementById('switch_' + sessionName);
         const hid = document.getElementById('active_val_' + sessionName);
         hid.value = sw.checked ? '1' : '0';
@@ -345,23 +374,30 @@
 </script>
 
 <!-- Proxy Config Modal -->
-<div class="modal fade" id="proxyModal" tabindex="-1" aria-labelledby="proxyModalLabel" aria-hidden="true" style="background: rgba(0,0,0,0.65);">
+<div class="modal fade" id="proxyModal" tabindex="-1" aria-labelledby="proxyModalLabel" aria-hidden="true"
+    style="background: rgba(0,0,0,0.65);">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content glass-card shadow-lg" style="background: #151515; border: 1px solid rgba(255,255,255,0.1);">
+        <div class="modal-content glass-card shadow-lg"
+            style="background: #151515; border: 1px solid rgba(255,255,255,0.1);">
             <div class="modal-header border-bottom border-secondary">
-                <h5 class="modal-title fw-bold" id="proxyModalLabel"><i class="bi bi-globe text-info me-2"></i>Configure Proxy</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <h5 class="modal-title fw-bold" id="proxyModalLabel"><i class="bi bi-globe text-info me-2"></i>Configure
+                    Proxy</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <form action="/sessions/set-proxy" method="post" class="m-0">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" id="proxy_session_name" name="session_name">
-                
+
                 <div class="modal-body text-start">
-                    <p class="text-secondary small mb-3">Tautkan proxy ke akun userbot ini untuk memisahkan IP alamatnya. Hal ini mencegah pemblokiran massal oleh Telegram jika salah satu akun terindikasi spam.</p>
-                    
+                    <p class="text-secondary small mb-3">Tautkan proxy ke akun userbot ini untuk memisahkan IP
+                        alamatnya. Hal ini mencegah pemblokiran massal oleh Telegram jika salah satu akun terindikasi
+                        spam.</p>
+
                     <div class="mb-3">
                         <label for="proxy_url" class="form-label text-secondary small fw-bold">Proxy URL</label>
-                        <input type="text" class="form-control bg-dark border-secondary text-white font-monospace" id="proxy_url" name="proxy_url" placeholder="socks5://user:password@ip:port">
+                        <input type="text" class="form-control bg-dark border-secondary text-white font-monospace"
+                            id="proxy_url" name="proxy_url" placeholder="socks5://user:password@ip:port">
                         <div class="form-text text-muted small mt-2">
                             Format Proxy yang didukung:<br>
                             • <code>socks5://username:password@ip:port</code> (SOCKS5 terautentikasi)<br>
@@ -371,9 +407,10 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="modal-footer border-top border-secondary">
-                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3"
+                        data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-info rounded-pill px-4 text-dark fw-bold">Simpan Proxy</button>
                 </div>
             </form>
