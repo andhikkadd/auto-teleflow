@@ -139,4 +139,5 @@ Path("backups").mkdir(parents=True, exist_ok=True)
 
 # Re-configure logging with correct level
 logging.getLogger().setLevel(LOG_LEVEL)
+logging.getLogger("telethon").setLevel(logging.WARNING)
 logger.info("Configuration successfully loaded and directories validated.")

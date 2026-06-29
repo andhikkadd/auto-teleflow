@@ -123,18 +123,19 @@ body {
 }
 
 .table-custom tbody tr {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.02) !important;
     transition: var(--transition);
 }
 
 .table-custom tbody tr:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.05) !important;
     transform: translateY(-2px);
 }
 
 .table-custom td {
     padding: 16px;
     vertical-align: middle;
+    background-color: transparent !important;
     border-top: 1px solid var(--border-color) !important;
     border-bottom: 1px solid var(--border-color) !important;
 }
