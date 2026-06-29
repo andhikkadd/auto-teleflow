@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 from telethon import events
 from telethon.errors import RPCError
 
@@ -89,7 +89,6 @@ async def register_handlers(clients: list = None):
                     bot_id = me.id if me else 0
                     
                     # Check if already replied within cooldown
-                    from datetime import datetime, timedelta
                     last_log = await db.fetchone(
                         "SELECT replied_at FROM auto_responder_logs WHERE bot_id = ? AND user_id = ?",
                         (bot_id, sender_id)
