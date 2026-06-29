@@ -972,6 +972,10 @@ async def post_submit_otp(
         # Cache dialogs
         await client.get_dialogs()
         
+        # Register command handlers for the new client
+        import commands
+        await commands.register_handlers([client])
+        
         return JSONResponse({"status": "success", "message": "Successfully authenticated!"})
     except SessionPasswordNeededError:
         return JSONResponse({"status": "password_required", "message": "2FA password is required."})

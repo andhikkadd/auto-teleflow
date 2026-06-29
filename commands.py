@@ -86,13 +86,37 @@ async def register_handlers(clients: list = None):
                 if clean_control == chat_id_str:
                     is_allowed_chat = True
                 else:
+                    resolved_id = None
                     try:
-                        chat = await event.get_chat()
-                        chat_username = getattr(chat, "username", None)
-                        if chat_username and clean_control.lstrip("@").lower() == chat_username.lower():
-                            is_allowed_chat = True
-                    except Exception:
-                        pass
+                        if clean_control.replace("-", "").isdigit():
+                            resolved_id = int(clean_control)
+                        else:
+                            from utils import resolve_target_entity
+                            entity = await resolve_target_entity(event.client, clean_control)
+                            if entity:
+                                from telethon.utils import get_peer_id
+                                resolved_id = get_peer_id(entity)
+                    except Exception as resolve_err:
+                        logger.warning(f"Could not resolve control group entity {clean_control}: {resolve_err}")
+
+                    if resolved_id is not None:
+                        try:
+                            from telethon.utils import get_peer_id
+                            event_peer_id = get_peer_id(await event.get_input_chat())
+                            if event_peer_id == resolved_id:
+                                is_allowed_chat = True
+                        except Exception:
+                            if event.chat_id == resolved_id or str(event.chat_id) == str(resolved_id):
+                                is_allowed_chat = True
+                    
+                    if not is_allowed_chat:
+                        try:
+                            chat = await event.get_chat()
+                            chat_username = getattr(chat, "username", None)
+                            if chat_username and clean_control.lstrip("@").lower() == chat_username.lower():
+                                is_allowed_chat = True
+                        except Exception:
+                            pass
             else:
                 # If control_group is not set, allow commands anywhere for backward compatibility
                 is_allowed_chat = True
@@ -232,6 +256,10 @@ async def register_handlers(clients: list = None):
             await event.reply(f"❌ Terjadi error saat mengeksekusi `{cmd}`: {type(e).__name__}: {sanitized_err}")
 
     for client in clients:
+        try:
+            client.remove_event_handler(command_router, events.NewMessage)
+        except Exception:
+            pass
         client.add_event_handler(command_router, events.NewMessage(pattern=r'^!'))
 
 # Command Handler Implementations
