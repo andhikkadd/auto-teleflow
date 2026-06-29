@@ -16,7 +16,7 @@ import config
 from database import db
 from utils import state, format_duration
 from server_status import get_server_stats
-from services.group_service import group_svc
+from services.group_service import group_svc, clean_username_input
 from services.template_service import template_svc
 from services.settings_service import settings_svc
 from services.wave_service import wave_svc
@@ -396,18 +396,33 @@ async def post_join_and_add_group(request: Request, username: str = Form(...)):
         if not active_clients:
             raise ValueError("No active Telegram client connected.")
             
-        clean_username = username.strip().replace(" ", "")
-        if not clean_username.startswith("@") and not "t.me/" in clean_username:
-            clean_username = "@" + clean_username
+        clean_username = clean_username_input(username)
+        if not clean_username:
+            raise ValueError("Input username/link is invalid.")
             
-        from telethon.tl.functions.channels import JoinChannelRequest
+        invite_hash = None
+        if clean_username.startswith("joinchat/"):
+            invite_hash = clean_username.split("/")[-1]
+        elif clean_username.startswith("+"):
+            invite_hash = clean_username[1:]
+            
         joined_any = False
         join_errors = []
         
         for idx, client in enumerate(active_clients):
             try:
-                await client(JoinChannelRequest(clean_username))
-                joined_any = True
+                if invite_hash:
+                    from telethon.tl.functions.messages import ImportChatInviteRequest
+                    from telethon.errors import UserAlreadyParticipantError
+                    try:
+                        await client(ImportChatInviteRequest(invite_hash))
+                        joined_any = True
+                    except UserAlreadyParticipantError:
+                        joined_any = True
+                else:
+                    from telethon.tl.functions.channels import JoinChannelRequest
+                    await client(JoinChannelRequest(clean_username))
+                    joined_any = True
             except Exception as e:
                 logger.warning(f"Client #{idx+1} failed to join {clean_username}: {e}")
                 join_errors.append(str(e))

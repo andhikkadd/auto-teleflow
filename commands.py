@@ -664,13 +664,9 @@ async def handle_reload(event):
     from dotenv import load_dotenv
     from pathlib import Path
     
-    local_env = Path(__file__).parent / ".env"
-    if local_env.exists():
-        load_dotenv(local_env, override=True)
-        
-    root_env = Path(__file__).parent.parent / ".env"
-    if root_env.exists():
-        load_dotenv(root_env, override=True)
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
     
     try:
         paused_setting = await db.fetchone("SELECT value FROM settings WHERE key = 'paused'")

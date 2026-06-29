@@ -22,125 +22,69 @@ class BackupService:
     @staticmethod
     async def create_backup() -> list[str]:
         """
-        Creates backup archives for campaigns, assistant modules, and root system files separately.
+        Creates a single backup archive for the entire bot ecosystem.
         Returns a list of absolute paths to the generated backup files.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Define base directories relative to this file
         service_file_path = Path(__file__).resolve()
-        campaigns_dir = service_file_path.parent.parent
-        project_root = campaigns_dir.parent
-        assistant_dir = project_root / "assistant"
+        project_root = service_file_path.parent.parent
         
-        backups_dir = campaigns_dir / "backups"
+        backups_dir = project_root / "backups"
         backups_dir.mkdir(parents=True, exist_ok=True)
         
         backup_files = []
         
-        # 1. CREATE CAMPAIGNS BACKUP
-        camp_zip_path = backups_dir / f"backup_campaigns_{timestamp}.zip"
+        # 1. CREATE BOT ECOSYSTEM BACKUP
+        bot_zip_path = backups_dir / f"backup_bot_{timestamp}.zip"
         try:
-            with zipfile.ZipFile(camp_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # Add campaigns source files
-                camp_files = [
+            with zipfile.ZipFile(bot_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Add source files from root
+                bot_files = [
                     "main.py", "config.py", "database.py", "telegram_client.py",
                     "commands.py", "scheduler.py", "web_panel.py",
-                    "server_status.py", "utils.py", "requirements.txt", "README.md"
+                    "server_status.py", "utils.py", "requirements.txt", "README.md", "runner.py"
                 ]
-                for f_name in camp_files:
-                    f_path = campaigns_dir / f_name
+                for f_name in bot_files:
+                    f_path = project_root / f_name
                     if f_path.exists():
                         zipf.write(str(f_path), arcname=f_name)
                 
-                # Add campaigns services
-                services_dir = campaigns_dir / "services"
+                # Add services
+                services_dir = project_root / "services"
                 if services_dir.is_dir():
                     for svc_file in services_dir.glob("*.py"):
                         zipf.write(str(svc_file), arcname=os.path.join("services", svc_file.name))
                         
                 # Add templates
-                templates_dir = campaigns_dir / "templates"
+                templates_dir = project_root / "templates"
                 if templates_dir.is_dir():
                     for t_file in templates_dir.rglob("*"):
                         if t_file.is_file():
                             zipf.write(str(t_file), arcname=os.path.join("templates", str(t_file.relative_to(templates_dir))))
                             
                 # Add database
-                db_path = project_root / "data" / "bot.db"
-                if db_path.exists():
-                    zipf.write(str(db_path), arcname="data/bot.db")
-                elif os.path.exists(config.DATABASE_PATH):
+                if os.path.exists(config.DATABASE_PATH):
                     zipf.write(config.DATABASE_PATH, arcname="data/bot.db")
                     
                 # Add sessions
-                sess_dir = campaigns_dir / "sessions"
+                sess_dir = project_root / "sessions"
                 if sess_dir.is_dir():
                     for session_file in sess_dir.glob("*.session"):
                         zipf.write(str(session_file), arcname=os.path.join("sessions", session_file.name))
                     for journal_file in sess_dir.glob("*.session-journal"):
                         zipf.write(str(journal_file), arcname=os.path.join("sessions", journal_file.name))
                         
-                # Add campaigns env
-                camp_env = campaigns_dir / ".env"
+                # Add env
+                camp_env = project_root / ".env"
                 if camp_env.exists():
                     zipf.write(str(camp_env), arcname=".env")
                     
-            logger.info(f"Campaigns backup created: {camp_zip_path}")
-            backup_files.append(str(camp_zip_path.resolve()))
+            logger.info(f"Ecosystem backup created: {bot_zip_path}")
+            backup_files.append(str(bot_zip_path.resolve()))
         except Exception as e:
-            logger.error(f"Failed to create campaigns backup: {e}", exc_info=True)
-            
-        # 2. CREATE ASSISTANT BACKUP
-        asst_zip_path = backups_dir / f"backup_assistant_{timestamp}.zip"
-        try:
-            if assistant_dir.is_dir():
-                with zipfile.ZipFile(asst_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    # Add assistant source files
-                    for f in assistant_dir.glob("*.py"):
-                        zipf.write(str(f), arcname=os.path.join("assistant", f.name))
-                    
-                    # Add assistant services
-                    asst_svc_dir = assistant_dir / "services"
-                    if asst_svc_dir.is_dir():
-                        for f in asst_svc_dir.glob("*.py"):
-                            zipf.write(str(f), arcname=os.path.join("assistant", "services", f.name))
-                            
-                    # Add assistant templates
-                    asst_temp_dir = assistant_dir / "templates"
-                    if asst_temp_dir.is_dir():
-                        for f in asst_temp_dir.rglob("*"):
-                            if f.is_file():
-                                zipf.write(str(f), arcname=os.path.join("assistant", "templates", str(f.relative_to(asst_temp_dir))))
-                                
-                    # Add assistant env
-                    asst_env = assistant_dir / ".env"
-                    if asst_env.exists():
-                        zipf.write(str(asst_env), arcname="assistant/.env")
-                        
-                    # Add database
-                    db_path = project_root / "data" / "bot.db"
-                    if db_path.exists():
-                        zipf.write(str(db_path), arcname="data/bot.db")
-                        
-                logger.info(f"Assistant backup created: {asst_zip_path}")
-                backup_files.append(str(asst_zip_path.resolve()))
-        except Exception as e:
-            logger.error(f"Failed to create assistant backup: {e}", exc_info=True)
-            
-        # 3. CREATE ROOT BACKUP (portal, runner, global .env)
-        root_zip_path = backups_dir / f"backup_system_root_{timestamp}.zip"
-        try:
-            with zipfile.ZipFile(root_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                root_files = ["portal.py", "runner.py", ".env", "requirements.txt"]
-                for f_name in root_files:
-                    path = project_root / f_name
-                    if path.exists():
-                        zipf.write(str(path), arcname=f_name)
-            logger.info(f"System Root backup created: {root_zip_path}")
-            backup_files.append(str(root_zip_path.resolve()))
-        except Exception as e:
-            logger.error(f"Failed to create system root backup: {e}", exc_info=True)
+            logger.error(f"Failed to create bot backup: {e}", exc_info=True)
             
         # Encrypt with GPG if available and allowed
         gpg_ok = BackupService.is_gpg_available()

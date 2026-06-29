@@ -32,8 +32,8 @@ def clean_username_input(raw_input: str) -> str:
     cleaned = cleaned.replace("t.me/", "")
     cleaned = cleaned.replace("https://telegram.me/", "")
     cleaned = cleaned.replace("telegram.me/", "")
-    if "/" in cleaned:
-        # Might be private join link
+    if cleaned.startswith("joinchat/") or cleaned.startswith("+"):
+        # This is a private invite link (hash), do not prepend @ or process as regular path
         pass
     else:
         # Prepend @ if it's a clean username and doesn't start with it or isn't a numeric ID
@@ -82,7 +82,7 @@ class GroupService:
         target_check = clean_target.lstrip("@")
         if not re.match(r'^[a-zA-Z0-9_]{3,32}$', target_check):
             # Check if it's a join link path or phone number / digits
-            if not (clean_target.startswith("joinchat/") or "+" in clean_target or clean_target.replace("-", "").isdigit()):
+            if not (clean_target.startswith("joinchat/") or clean_target.startswith("+") or clean_target.replace("-", "").isdigit()):
                 raise ValueError("Group username/link is invalid. Must be @username, invite link, or numeric ID.")
                 
         # Check if already exists in DB
@@ -107,6 +107,10 @@ class GroupService:
                     updates = await client(ImportChatInviteRequest(invite_hash))
                     if hasattr(updates, "chats") and updates.chats:
                         entity = updates.chats[0]
+                    else:
+                        invite_info = await client(CheckChatInviteRequest(invite_hash))
+                        if hasattr(invite_info, "chat"):
+                            entity = invite_info.chat
                 except UserAlreadyParticipantError:
                     invite_info = await client(CheckChatInviteRequest(invite_hash))
                     if hasattr(invite_info, "chat"):

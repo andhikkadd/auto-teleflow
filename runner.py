@@ -44,24 +44,16 @@ async def main():
     import urllib.request
     try:
         public_ip = urllib.request.urlopen('https://api.ipify.org', timeout=5).read().decode('utf-8').strip()
-        print(f"\n[runner] 🌎 VPS NODE PUBLIC IP: {public_ip}", flush=True)
-        print(f"[runner] 🔗 DIRECT PORTAL URL: http://{public_ip}:4765\n", flush=True)
+        print(f"\n[runner] VPS NODE PUBLIC IP: {public_ip}", flush=True)
+        print(f"[runner] DIRECT PANEL URL: http://{public_ip}:4765\n", flush=True)
     except Exception as e:
         print(f"[runner] Failed to resolve public VPS IP: {e}", flush=True)
         
     tasks = []
     
     # 1. Run Campaigns application
-    campaigns_path = os.path.join("campaigns", "main.py")
-    tasks.append(run_app(campaigns_path, "campaigns"))
-    
-    # 2. Run Assistant application
-    assistant_path = os.path.join("assistant", "main.py")
-    tasks.append(run_app(assistant_path, "assistant"))
-    
-    # 3. Run Portal Gateway
-    portal_path = "portal.py"
-    tasks.append(run_app(portal_path, "portal"))
+    campaigns_path = "main.py"
+    tasks.append(run_app(campaigns_path, "app"))
     
     # 4. Run automated free SSH tunnel (pinggy.io) if ssh client is available
     import shutil
@@ -85,7 +77,7 @@ async def main():
                         break
                     decoded_line = line.decode('utf-8', errors='replace').rstrip('\r\n')
                     if "http://" in decoded_line or "https://" in decoded_line:
-                        print(f"\n[tunnel] 🌍 PUBLIC WEB PANEL URL: {decoded_line.strip()}\n", flush=True)
+                        print(f"\n[tunnel] PUBLIC WEB PANEL URL: {decoded_line.strip()}\n", flush=True)
                     elif any(k in decoded_line.lower() for k in ["pinggy", "tunnel", "connected"]):
                         print(f"[tunnel] {decoded_line.strip()}", flush=True)
             except Exception as e:
