@@ -42,6 +42,50 @@ def get_session_files() -> list[str]:
         
     return sorted(list(set(sessions)))
 
+def get_proxy_for_session(session_name: str) -> str:
+    """Retrieve proxy URL from database for a specific session."""
+    from database import db
+    if not db.conn:
+        db.connect()
+    try:
+        cursor = db.conn.cursor()
+        cursor.execute("SELECT proxy_url FROM session_proxies WHERE session_name = ?", (session_name,))
+        row = cursor.fetchone()
+        return row[0] if row and row[0] else None
+    except Exception as e:
+        logger.error(f"Error reading proxy for session {session_name}: {e}")
+        return None
+
+def parse_proxy_url(proxy_url: str):
+    """Parse a proxy URL into Telethon-compatible socks proxy tuple."""
+    if not proxy_url:
+        return None
+    from urllib.parse import urlparse
+    import socks
+    try:
+        parsed = urlparse(proxy_url)
+        scheme = parsed.scheme.lower()
+        if scheme == 'socks5':
+            proxy_type = socks.SOCKS5
+        elif scheme == 'socks4':
+            proxy_type = socks.SOCKS4
+        elif scheme in ('http', 'https'):
+            proxy_type = socks.HTTP
+        else:
+            return None
+        
+        return (
+            proxy_type,
+            parsed.hostname,
+            parsed.port or (1080 if 'socks' in scheme else 80),
+            True,
+            parsed.username,
+            parsed.password
+        )
+    except Exception as e:
+        logger.error(f"Error parsing proxy URL '{proxy_url}': {e}")
+        return None
+
 def get_client(session_name: str = None) -> TelegramClient:
     """
     Get or create a TelegramClient instance for a specific session name.
@@ -57,12 +101,24 @@ def get_client(session_name: str = None) -> TelegramClient:
 
     if session_name not in _clients:
         session_path = os.path.join("sessions", session_name)
+        proxy_url = get_proxy_for_session(session_name)
+        proxy_config = parse_proxy_url(proxy_url)
+        if proxy_config:
+            # Mask credentials in logs
+            log_url = proxy_url
+            if '@' in proxy_url:
+                parts = proxy_url.split('@', 1)
+                scheme_part = parts[0].split('//', 1)
+                log_url = f"{scheme_part[0]}//***:***@{parts[1]}"
+            logger.info(f"Session '{session_name}' using proxy: {log_url}")
+            
         _clients[session_name] = TelegramClient(
             session_path,
             config.API_ID,
             config.API_HASH,
             connection_retries=10,
-            retry_delay=5
+            retry_delay=5,
+            proxy=proxy_config
         )
     return _clients[session_name]
 

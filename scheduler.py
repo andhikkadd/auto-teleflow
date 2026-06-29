@@ -55,6 +55,42 @@ async def start_scheduler():
             # Calculate next delay interval
             delay_minutes = random.randint(state.min_delay, state.max_delay)
             state.next_run_time = datetime.now() + timedelta(minutes=delay_minutes)
+
+            # Human Mode Sleep Cycle check
+            try:
+                human_mode = await settings_svc.get_setting("human_mode_enabled", "0")
+                if human_mode == "1":
+                    sleep_start = await settings_svc.get_setting("human_mode_sleep_start", "23:00")
+                    sleep_end = await settings_svc.get_setting("human_mode_sleep_end", "06:00")
+                    
+                    now = datetime.now()
+                    start_parts = sleep_start.split(":")
+                    end_parts = sleep_end.split(":")
+                    
+                    if len(start_parts) == 2 and len(end_parts) == 2:
+                        start_h, start_m = int(start_parts[0]), int(start_parts[1])
+                        end_h, end_m = int(end_parts[0]), int(end_parts[1])
+                        
+                        start_time = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
+                        end_time = now.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
+                        
+                        is_sleep_time = False
+                        if start_time <= end_time:
+                            is_sleep_time = start_time <= now <= end_time
+                        else:
+                            is_sleep_time = now >= start_time or now <= end_time
+                            
+                        if is_sleep_time:
+                            if now <= end_time:
+                                wakeup_time = end_time
+                            else:
+                                wakeup_time = end_time + timedelta(days=1)
+                            
+                            state.next_run_time = wakeup_time
+                            logger.info(f"Human Mode Enabled: Currently in sleep hours ({sleep_start} - {sleep_end}). Scheduler will sleep until {state.next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            except Exception as human_err:
+                logger.error(f"Error checking Human Mode in scheduler: {human_err}")
+
             logger.info(f"Next wave scheduled at {state.next_run_time.strftime('%Y-%m-%d %H:%M:%S')} (in {delay_minutes} minutes)")
 
             # Sleep responsively

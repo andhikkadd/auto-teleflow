@@ -70,6 +70,16 @@
                                 <tr class="border-secondary">
                                     <td class="ps-4 py-3 font-monospace">
                                         {{ sess.name }}
+                                        {% if sess.proxy %}
+                                            <div class="text-secondary small font-monospace" style="font-size: 0.72rem; opacity: 0.85;">
+                                                <i class="bi bi-shield-fill-check text-success me-1"></i>
+                                                {{ sess.proxy.split('@')[-1] }}
+                                            </div>
+                                        {% else %}
+                                            <div class="text-muted small" style="font-size: 0.72rem; opacity: 0.6;">
+                                                <i class="bi bi-shield-slash-fill text-warning me-1"></i> No Proxy
+                                            </div>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if sess.authorized %}
@@ -93,6 +103,9 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-end pe-4">
+                                        <button class="btn btn-outline-info btn-sm rounded-pill px-3 me-1" onclick="openProxyModal('{{ sess.name }}', '{{ sess.proxy or '' }}')">
+                                            <i class="bi bi-globe me-1"></i> Proxy
+                                        </button>
                                         {% if not sess.is_default %}
                                         <form action="/sessions/delete" method="post" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus akun userbot ini?');">
                                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -300,5 +313,53 @@
             spinnerOtp.classList.add('d-none');
         }
     });
+
+    // Proxy modal controls
+    const proxyModal = new bootstrap.Modal(document.getElementById('proxyModal'));
+    const proxySessionInput = document.getElementById('proxy_session_name');
+    const proxyUrlInput = document.getElementById('proxy_url');
+
+    window.openProxyModal = function(sessionName, currentProxy) {
+        proxySessionInput.value = sessionName;
+        proxyUrlInput.value = currentProxy;
+        proxyModal.show();
+    };
 </script>
+
+<!-- Proxy Config Modal -->
+<div class="modal fade" id="proxyModal" tabindex="-1" aria-labelledby="proxyModalLabel" aria-hidden="true" style="background: rgba(0,0,0,0.65);">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card shadow-lg" style="background: #151515; border: 1px solid rgba(255,255,255,0.1);">
+            <div class="modal-header border-bottom border-secondary">
+                <h5 class="modal-title fw-bold" id="proxyModalLabel"><i class="bi bi-globe text-info me-2"></i>Configure Proxy</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/sessions/set-proxy" method="post" class="m-0">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" id="proxy_session_name" name="session_name">
+                
+                <div class="modal-body text-start">
+                    <p class="text-secondary small mb-3">Tautkan proxy ke akun userbot ini untuk memisahkan IP alamatnya. Hal ini mencegah pemblokiran massal oleh Telegram jika salah satu akun terindikasi spam.</p>
+                    
+                    <div class="mb-3">
+                        <label for="proxy_url" class="form-label text-secondary small fw-bold">Proxy URL</label>
+                        <input type="text" class="form-control bg-dark border-secondary text-white font-monospace" id="proxy_url" name="proxy_url" placeholder="socks5://user:password@ip:port">
+                        <div class="form-text text-muted small mt-2">
+                            Format Proxy yang didukung:<br>
+                            • <code>socks5://username:password@ip:port</code> (SOCKS5 terautentikasi)<br>
+                            • <code>socks5://ip:port</code> (SOCKS5 tanpa password)<br>
+                            • <code>http://username:password@ip:port</code> (HTTP/HTTPS Proxy)<br>
+                            • Kosongkan input dan simpan untuk menghapus proxy (menggunakan IP server VPS asli)
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer border-top border-secondary">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-info rounded-pill px-4 text-dark fw-bold">Simpan Proxy</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -86,6 +86,31 @@
                     </div>
                 </div>
 
+                <hr class="border-secondary my-4">
+
+                <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-moon-stars text-primary me-2"></i>Human Mode Scheduler (Sleep Cycle)</h6>
+
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="human_mode_enabled" name="human_mode_enabled" {% if settings.human_mode_enabled == '1' %}checked{% endif %}>
+                        <label class="form-check-label text-secondary small fw-semibold" for="human_mode_enabled">Enable Sleep Cycle (Simulate Human Hours)</label>
+                    </div>
+                    <div class="form-text text-muted small mt-1">If enabled, the scheduler will pause sending during the configured sleep hours to simulate normal human rest cycles.</div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3">
+                        <label for="human_mode_sleep_start" class="form-label text-secondary small fw-semibold">Sleep Start Time (24h Format)</label>
+                        <input type="text" class="form-control form-control-custom" id="human_mode_sleep_start" name="human_mode_sleep_start" value="{{ settings.human_mode_sleep_start or '23:00' }}" placeholder="23:00" required style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div class="form-text text-muted small mt-1">Saran: 22:00 atau 23:00.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="human_mode_sleep_end" class="form-label text-secondary small fw-semibold">Sleep End Time (24h Format)</label>
+                        <input type="text" class="form-control form-control-custom" id="human_mode_sleep_end" name="human_mode_sleep_end" value="{{ settings.human_mode_sleep_end or '06:00' }}" placeholder="06:00" required style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div class="form-text text-muted small mt-1">Saran: 05:00 atau 06:00.</div>
+                    </div>
+                </div>
+
                 <div class="mb-4">
                     <div class="form-check form-switch">
                         <input class="form-check-input" type="checkbox" role="switch" id="run_wave_on_start" name="run_wave_on_start" {% if settings.run_wave_on_start == '1' %}checked{% endif %}>

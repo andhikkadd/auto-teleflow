@@ -652,7 +652,10 @@ async def post_save_settings(
     control_group: str = Form(""),
     ghost_auditing_enabled: Optional[str] = Form(None),
     ghost_auditing_limit: int = Form(10),
-    ghost_auditing_action: str = Form("skip")
+    ghost_auditing_action: str = Form("skip"),
+    human_mode_enabled: Optional[str] = Form(None),
+    human_mode_sleep_start: str = Form("23:00"),
+    human_mode_sleep_end: str = Form("06:00")
 ):
     try:
         # Input Validation Checks
@@ -667,6 +670,18 @@ async def post_save_settings(
         if ghost_auditing_limit < 1:
             raise ValueError("Ghost auditing limit must be at least 1 message.")
             
+        if human_mode_enabled is not None:
+            try:
+                for t in (human_mode_sleep_start, human_mode_sleep_end):
+                    parts = t.strip().split(":")
+                    if len(parts) != 2:
+                        raise ValueError()
+                    h, m = int(parts[0]), int(parts[1])
+                    if not (0 <= h <= 23 and 0 <= m <= 59):
+                        raise ValueError()
+            except Exception:
+                raise ValueError("Sleep times must be in 24h format like 23:00 or 06:00.")
+
         await settings_svc.update_all_settings(
             min_delay=min_delay,
             max_delay=max_delay,
@@ -679,6 +694,10 @@ async def post_save_settings(
             ghost_auditing_limit=ghost_auditing_limit,
             ghost_auditing_action=ghost_auditing_action
         )
+        
+        await settings_svc.set_setting("human_mode_enabled", "1" if human_mode_enabled is not None else "0")
+        await settings_svc.set_setting("human_mode_sleep_start", human_mode_sleep_start.strip())
+        await settings_svc.set_setting("human_mode_sleep_end", human_mode_sleep_end.strip())
         
         # Apply parameters to running state immediately
         state.min_delay = min_delay
@@ -885,11 +904,15 @@ async def get_sessions(request: Request):
         except Exception:
             pass
             
+        proxy_row = await db.fetchone("SELECT proxy_url FROM session_proxies WHERE session_name = ?", (name,))
+        proxy_str = proxy_row["proxy_url"] if proxy_row else None
+            
         sessions_data.append({
             "name": name,
             "is_default": is_default,
             "authorized": authorized,
-            "user_details": user_details
+            "user_details": user_details,
+            "proxy": proxy_str
         })
         
     context = {
@@ -984,6 +1007,49 @@ async def post_submit_otp(
     except Exception as e:
         logger.error(f"OTP authentication failed for {phone}: {e}", exc_info=True)
         return JSONResponse({"status": "error", "message": str(e)})
+
+@app.post("/sessions/set-proxy")
+async def post_set_proxy(
+    request: Request,
+    session_name: str = Form(...),
+    proxy_url: str = Form("")
+):
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url="/login", status_code=303)
+        
+    proxy_url = proxy_url.strip()
+    try:
+        if not proxy_url:
+            await db.execute("DELETE FROM session_proxies WHERE session_name = ?", (session_name,))
+            request.session["flash_success"] = f"Proxy cleared for session '{session_name}'."
+        else:
+            from urllib.parse import urlparse
+            parsed = urlparse(proxy_url)
+            if parsed.scheme.lower() not in ('socks5', 'socks4', 'http', 'https') or not parsed.hostname:
+                raise ValueError("Invalid proxy format. Must be like: socks5://user:pass@host:port or http://host:port")
+                
+            now_str = datetime.now().isoformat()
+            await db.execute(
+                "INSERT OR REPLACE INTO session_proxies (session_name, proxy_url, updated_at) VALUES (?, ?, ?)",
+                (session_name, proxy_url, now_str)
+            )
+            request.session["flash_success"] = f"Proxy successfully updated for session '{session_name}'."
+
+        # Evict and disconnect client from cache to force recreation on next use
+        clients_dict = telegram_client.get_clients_dict()
+        if session_name in clients_dict:
+            client_obj = clients_dict[session_name]
+            try:
+                if client_obj.is_connected():
+                    await client_obj.disconnect()
+            except Exception:
+                pass
+            clients_dict.pop(session_name, None)
+            
+    except Exception as e:
+        request.session["flash_danger"] = f"Failed to set proxy: {e}"
+        
+    return RedirectResponse(url="/sessions", status_code=303)
 
 @app.post("/sessions/delete")
 async def post_delete_session(request: Request, session_name: str = Form(...)):

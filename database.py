@@ -146,6 +146,15 @@ class Database:
             )
         """)
 
+        # 7. session_proxies table
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS session_proxies (
+                session_name TEXT PRIMARY KEY,
+                proxy_url TEXT,
+                updated_at TEXT
+            )
+        """)
+
         # Dynamic migrations check: check if the columns are in groups table
         columns_to_add = {
             "status": "TEXT DEFAULT 'ACTIVE'",
