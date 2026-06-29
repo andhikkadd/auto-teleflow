@@ -140,6 +140,32 @@ class WaveService:
                     selected_template = get_next_template()
                     
                     try:
+                        # 0. Auto-Join check: ensure bot is in the group before auditing/sending
+                        from utils import resolve_target_entity
+                        from telethon.tl.types import Channel
+                        from telethon.tl.functions.channels import JoinChannelRequest
+                        
+                        entity = None
+                        try:
+                            entity = await client.get_entity(target)
+                        except Exception:
+                            try:
+                                entity = await resolve_target_entity(client, target)
+                            except Exception as ent_err:
+                                logger.warning(f"Could not resolve entity for {grp_title} ({target}): {ent_err}")
+                        
+                        if entity:
+                            if isinstance(entity, Channel) and getattr(entity, 'left', True):
+                                logger.info(f"Account {client_name} is not in group {grp_title}. Attempting to join...")
+                                try:
+                                    await client(JoinChannelRequest(entity))
+                                    # Human-like delay after joining to avoid Telegram anti-spam triggers
+                                    join_delay = random.randint(5, 10)
+                                    logger.info(f"Account {client_name} joined {grp_title}. Sleeping for {join_delay}s...")
+                                    await asyncio.sleep(join_delay)
+                                except Exception as join_err:
+                                    logger.error(f"Account {client_name} failed to join {grp_title}: {join_err}")
+
                         # Ghost Auditing / Smart Deduplication check
                         ghost_auditing_enabled = await settings_svc.get_setting("ghost_auditing_enabled", "0")
                         if ghost_auditing_enabled == "1":
