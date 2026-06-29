@@ -97,6 +97,37 @@
 
                 <hr class="border-secondary my-4">
 
+                <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-chat-left-dots text-primary me-2"></i>Smart Auto-Responder (PM)</h6>
+
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="auto_responder_enabled" name="auto_responder_enabled" {% if settings.auto_responder_enabled == '1' %}checked{% endif %}>
+                        <label class="form-check-label text-secondary small fw-semibold" for="auto_responder_enabled">Enable Auto-Responder (PM)</label>
+                    </div>
+                    <div class="form-text text-muted small mt-1">Otomatis membalas chat masuk dari pembeli di PM (Private Message) untuk mengarahkan ke channel/kontak utama.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="auto_responder_text" class="form-label text-secondary small fw-semibold">Auto-Reply Text Template</label>
+                    <textarea class="form-control form-control-custom" id="auto_responder_text" name="auto_responder_text" rows="3" placeholder="Masukkan pesan balasan otomatis..." required>{{ settings.auto_responder_text }}</textarea>
+                    <div class="form-text text-muted small mt-1">Teks balasan yang akan dikirim. Mendukung SpinTax (contoh: `{Halo|Hi} kak, silakan cek @tuntungpedia`).</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="auto_responder_cooldown" class="form-label text-secondary small fw-semibold">Cooldown (Jam)</label>
+                        <input type="number" class="form-control form-control-custom" id="auto_responder_cooldown" name="auto_responder_cooldown" value="{{ settings.auto_responder_cooldown or '24' }}" min="1" required>
+                        <div class="form-text text-muted small mt-1">Batas waktu (jam) untuk membalas pengguna yang sama lagi.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="auto_responder_keywords" class="form-label text-secondary small fw-semibold">Trigger Keywords (Optional)</label>
+                        <input type="text" class="form-control form-control-custom" id="auto_responder_keywords" name="auto_responder_keywords" value="{{ settings.auto_responder_keywords or '' }}" placeholder="Contoh: ready,minat,order,harga,beli">
+                        <div class="form-text text-muted small mt-1">Pisahkan dengan koma. Kosongkan untuk membalas semua pesan PM masuk.</div>
+                    </div>
+                </div>
+
+                <hr class="border-secondary my-4">
+
                 <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-moon-stars text-primary me-2"></i>Human Mode Scheduler (Sleep Cycle)</h6>
 
                 <div class="mb-3">

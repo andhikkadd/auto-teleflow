@@ -1,6 +1,7 @@
 import logging
 import re
 import os
+import random
 from datetime import datetime, timedelta
 from typing import Optional
 import asyncio
@@ -174,3 +175,16 @@ async def resolve_target_entity(client, target):
         logger.info(f"Username {target_str} not found in cache. Fetching dialogs...")
         await client.get_dialogs()
         return await client.get_entity(target_str)
+
+def resolve_spintax(text: str) -> str:
+    """Recursively resolves spintax like {option1|option2|{sub-option1|sub-option2}}."""
+    if not text:
+        return text
+    pattern = re.compile(r'\{([^{}]+)\}')
+    while True:
+        match = pattern.search(text)
+        if not match:
+            break
+        options = match.group(1).split('|')
+        text = text.replace(match.group(0), random.choice(options), 1)
+    return text

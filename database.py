@@ -155,6 +155,16 @@ class Database:
             )
         """)
 
+        # 8. auto_responder_logs table
+        await self.execute("""
+            CREATE TABLE IF NOT EXISTS auto_responder_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bot_id INTEGER,
+                user_id INTEGER,
+                replied_at TEXT
+            )
+        """)
+
         # Dynamic migrations check: check if the columns are in groups table
         columns_to_add = {
             "status": "TEXT DEFAULT 'ACTIVE'",
@@ -252,6 +262,22 @@ class Database:
         await self.execute(
             "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
             ("ghost_auditing_action", "skip", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("auto_responder_enabled", "0", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("auto_responder_text", "Halo! Untuk info pricelist lengkap, daftar kontak, dan cara pemesanan silakan langsung kunjungi Channel Resmi kami di @tuntungpedia.", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("auto_responder_cooldown", "24", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("auto_responder_keywords", "", now_str)
         )
 
         # Verify if there is at least one default template, insert one if empty

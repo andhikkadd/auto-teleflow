@@ -57,6 +57,80 @@ async def register_handlers(clients: list = None):
         # Verify authorization
         authorized = is_authorized(sender_id, sender_username)
         
+        # Check if it is a private chat and NOT authorized (meaning a customer PM'ed the bot)
+        if event.is_private and not authorized:
+            # 1. Fetch settings from DB
+            from services.settings_service import settings_svc
+            ar_enabled = await settings_svc.get_setting("auto_responder_enabled", "0")
+            if ar_enabled == "1":
+                # 2. Get keywords and text template
+                ar_text = await settings_svc.get_setting(
+                    "auto_responder_text",
+                    "Halo! Untuk info pricelist lengkap, daftar kontak, dan cara pemesanan silakan langsung kunjungi Channel Resmi kami di @tuntungpedia."
+                )
+                ar_keywords_raw = await settings_svc.get_setting("auto_responder_keywords", "")
+                
+                # Check keywords match if set
+                should_reply = True
+                if ar_keywords_raw.strip():
+                    keywords = [k.strip().lower() for k in ar_keywords_raw.split(",") if k.strip()]
+                    msg_text = (event.text or "").lower()
+                    should_reply = any(k in msg_text for k in keywords)
+                
+                if should_reply:
+                    # 3. Check Cooldown
+                    ar_cooldown_hours_str = await settings_svc.get_setting("auto_responder_cooldown", "24")
+                    try:
+                        cooldown_hours = float(ar_cooldown_hours_str)
+                    except ValueError:
+                        cooldown_hours = 24.0
+                        
+                    # Retrieve client bot ID
+                    bot_id = me.id if me else 0
+                    
+                    # Check if already replied within cooldown
+                    from datetime import datetime, timedelta
+                    last_log = await db.fetchone(
+                        "SELECT replied_at FROM auto_responder_logs WHERE bot_id = ? AND user_id = ?",
+                        (bot_id, sender_id)
+                    )
+                    
+                    can_send = True
+                    now = datetime.now()
+                    if last_log:
+                        try:
+                            last_reply = datetime.fromisoformat(last_log["replied_at"])
+                            if now - last_reply < timedelta(hours=cooldown_hours):
+                                can_send = False
+                        except Exception:
+                            pass
+                            
+                    if can_send:
+                        # 4. Format text (resolve SpinTax)
+                        from utils import resolve_spintax
+                        reply_msg = resolve_spintax(ar_text)
+                        
+                        try:
+                            # Send reply
+                            await event.reply(reply_msg)
+                            
+                            # Log reply in DB
+                            now_str = now.isoformat()
+                            if last_log:
+                                await db.execute(
+                                    "UPDATE auto_responder_logs SET replied_at = ? WHERE bot_id = ? AND user_id = ?",
+                                    (now_str, bot_id, sender_id)
+                                )
+                            else:
+                                await db.execute(
+                                    "INSERT INTO auto_responder_logs (bot_id, user_id, replied_at) VALUES (?, ?, ?)",
+                                    (bot_id, sender_id, now_str)
+                                )
+                            logger.info(f"Auto-responded to user {sender_id} via bot {bot_id}")
+                        except Exception as reply_err:
+                            logger.error(f"Failed to send auto-reply to user {sender_id}: {reply_err}")
+            return
+
         # DB logging of command
         now_str = datetime.now().isoformat()
         status_str = "allowed" if authorized else "denied"

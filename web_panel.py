@@ -654,6 +654,10 @@ async def post_save_settings(
     ghost_auditing_enabled: Optional[str] = Form(None),
     ghost_auditing_limit: int = Form(10),
     ghost_auditing_action: str = Form("skip"),
+    auto_responder_enabled: Optional[str] = Form(None),
+    auto_responder_text: str = Form(""),
+    auto_responder_cooldown: int = Form(24),
+    auto_responder_keywords: str = Form(""),
     human_mode_enabled: Optional[str] = Form(None),
     human_mode_sleep_start: str = Form("23:00"),
     human_mode_sleep_end: str = Form("06:00")
@@ -670,6 +674,8 @@ async def post_save_settings(
             raise ValueError("Report and backup target username/ID cannot be empty.")
         if ghost_auditing_limit < 1:
             raise ValueError("Ghost auditing limit must be at least 1 message.")
+        if auto_responder_cooldown < 1:
+            raise ValueError("Auto-responder cooldown must be at least 1 hour.")
             
         if human_mode_enabled is not None:
             try:
@@ -697,6 +703,11 @@ async def post_save_settings(
         )
         
         await settings_svc.set_setting("report_frequency", report_frequency)
+        
+        await settings_svc.set_setting("auto_responder_enabled", "1" if auto_responder_enabled is not None else "0")
+        await settings_svc.set_setting("auto_responder_text", auto_responder_text.strip())
+        await settings_svc.set_setting("auto_responder_cooldown", str(auto_responder_cooldown))
+        await settings_svc.set_setting("auto_responder_keywords", auto_responder_keywords.strip())
         
         await settings_svc.set_setting("human_mode_enabled", "1" if human_mode_enabled is not None else "0")
         await settings_svc.set_setting("human_mode_sleep_start", human_mode_sleep_start.strip())
