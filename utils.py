@@ -108,13 +108,24 @@ async def resolve_target_entity(client, target):
         
     # If target is already an integer (e.g. peer ID)
     if isinstance(target, int):
-        return target
+        try:
+            return await client.get_entity(target)
+        except ValueError:
+            logger.info(f"Entity ID {target} not found in cache. Fetching dialogs...")
+            await client.get_dialogs()
+            return await client.get_entity(target)
         
     target_str = str(target).strip()
     
     # If it is a digit or signed digit
     if target_str.replace("-", "").isdigit():
-        return int(target_str)
+        target_int = int(target_str)
+        try:
+            return await client.get_entity(target_int)
+        except ValueError:
+            logger.info(f"Entity ID {target_int} not found in cache. Fetching dialogs...")
+            await client.get_dialogs()
+            return await client.get_entity(target_int)
         
     # Check if target is a Telegram link
     if "t.me/" in target_str or "telegram.me/" in target_str:
@@ -157,4 +168,9 @@ async def resolve_target_entity(client, target):
                 raise e
 
     # Otherwise get normal entity (username or peer ID)
-    return await client.get_entity(target_str)
+    try:
+        return await client.get_entity(target_str)
+    except ValueError:
+        logger.info(f"Username {target_str} not found in cache. Fetching dialogs...")
+        await client.get_dialogs()
+        return await client.get_entity(target_str)
