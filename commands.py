@@ -107,6 +107,30 @@ async def register_handlers(clients: list = None):
         cmd = parts[0].lower()
         arg_str = parts[1].strip() if len(parts) > 1 else ""
 
+        # Determine if this client is the primary client (first sorted by session filename)
+        active_clients = sorted(
+            telegram_client.get_active_clients(),
+            key=lambda c: getattr(c.session, "filename", "")
+        )
+        is_primary = False
+        if active_clients:
+            try:
+                if event.client.session.filename == active_clients[0].session.filename:
+                    is_primary = True
+            except Exception:
+                pass
+
+        # Utility commands that should only be handled once by the Master Bot
+        single_response_cmds = (
+            "!help", "!menu", "!server", "!backup", 
+            "!addgroup", "!addgroups", "!groups", "!delgroup", 
+            "!addtemplate", "!templates", "!deltemplate",
+            "!setdelay", "!setgroupdelay", "!clean", "!autoclean",
+            "!wave"
+        )
+        if not is_primary and cmd in single_response_cmds:
+            return
+
         # Check for username targeting (e.g. !ping @bot_username)
         target_username = None
         if arg_str.startswith("@"):
