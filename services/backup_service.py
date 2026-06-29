@@ -222,6 +222,7 @@ class BackupService:
                 db_dest.parent.mkdir(parents=True, exist_ok=True)
                 
                 # Close any active handle before overriding
+                from database import db
                 db.close()
                 shutil.copy2(db_src, db_dest)
                 logger.info(f"Database successfully restored to {db_dest}")
