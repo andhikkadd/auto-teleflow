@@ -5,7 +5,7 @@ import secrets
 from datetime import datetime
 from typing import Optional
 
-from fastapi import FastAPI, Request, Form, HTTPException, Depends, status
+from fastapi import FastAPI, Request, Form, HTTPException, Depends, status, File, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, JSONResponse
@@ -801,6 +801,60 @@ async def post_run_backup(request: Request):
     except Exception as e:
         request.session["flash_danger"] = f"Backup failed: {e}"
         
+    return RedirectResponse(url="/settings", status_code=303)
+
+@app.post("/backup/restore")
+async def post_restore_backup(
+    request: Request,
+    backup_file: UploadFile = File(...),
+    gpg_password: Optional[str] = Form(None)
+):
+    if not request.session.get("logged_in"):
+        return RedirectResponse(url="/login", status_code=303)
+
+    # Save uploaded file temporarily
+    temp_upload_dir = Path("temp_uploads")
+    temp_upload_dir.mkdir(parents=True, exist_ok=True)
+    temp_file_path = temp_upload_dir / backup_file.filename
+
+    try:
+        # Write file content
+        with open(temp_file_path, "wb") as f:
+            content = await backup_file.read()
+            f.write(content)
+
+        # Call restore_backup
+        await backup_svc.restore_backup(temp_file_path, gpg_password)
+
+        # Hot-reload system
+        logger.info("Backup restored. Initiating system hot-reload...")
+        
+        # 1. Disconnect active clients
+        await telegram_client.disconnect_all_clients()
+        
+        # 2. Re-initialize database
+        await db.initialize_schema()
+        
+        # 3. Reload settings
+        from main import load_settings_into_state
+        await load_settings_into_state()
+        
+        # 4. Start clients and register handlers
+        active_clients = await telegram_client.start_all_clients()
+        import commands
+        await commands.register_handlers(active_clients)
+        
+        request.session["flash_success"] = "Backup database and session files restored and hot-reloaded successfully!"
+    except Exception as e:
+        logger.error(f"Failed to restore backup: {e}", exc_info=True)
+        request.session["flash_danger"] = f"Restore backup failed: {e}"
+    finally:
+        # Cleanup temp file
+        if temp_file_path.exists():
+            temp_file_path.unlink()
+        if temp_upload_dir.exists() and not any(temp_upload_dir.iterdir()):
+            temp_upload_dir.rmdir()
+
     return RedirectResponse(url="/settings", status_code=303)
 
 @app.get("/sessions")

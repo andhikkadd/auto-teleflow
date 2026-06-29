@@ -152,4 +152,94 @@ class BackupService:
         except Exception as e:
             logger.error(f"Failed to delete backup file {file_path}: {e}")
 
+    @staticmethod
+    async def restore_backup(backup_file_path: Path, gpg_password: str = None) -> bool:
+        """
+        Restores a backup archive (zip or zip.gpg).
+        Returns True if restore was successful, False otherwise.
+        """
+        temp_dir = Path("temp_restore")
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        
+        zip_path = None
+        
+        # Check if file is GPG encrypted
+        is_gpg = False
+        if backup_file_path.suffix == ".gpg":
+            is_gpg = True
+                
+        if is_gpg:
+            # We need to decrypt it
+            decrypted_zip_path = temp_dir / "backup.zip"
+            passwd = gpg_password if gpg_password else config.BACKUP_PASSWORD
+            if not passwd:
+                raise ValueError("Password is required for GPG decryption.")
+                
+            try:
+                # GPG decryption process
+                process = subprocess.Popen(
+                    [
+                        "gpg", "--decrypt", "--batch", "--yes",
+                        "--passphrase-fd", "0", "-o", str(decrypted_zip_path), str(backup_file_path)
+                    ],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                stdout, stderr = process.communicate(input=passwd)
+                if process.returncode != 0:
+                    raise RuntimeError(f"GPG decryption failed: {stderr}")
+                zip_path = decrypted_zip_path
+            except Exception as e:
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir)
+                raise RuntimeError(f"GPG Decryption error: {str(e)}")
+        else:
+            zip_path = backup_file_path
+            
+        # Unzip the file
+        try:
+            with zipfile.ZipFile(zip_path, 'r') as zipf:
+                zipf.extractall(temp_dir)
+        except Exception as e:
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+            raise RuntimeError(f"Failed to extract zip file: {e}")
+            
+        # Copy database and sessions
+        try:
+            # 1. Restore database
+            db_src = temp_dir / "data" / "bot.db"
+            if not db_src.exists():
+                # Try finding it in root
+                db_src = temp_dir / "bot.db"
+                
+            if db_src.exists():
+                db_dest = Path(config.DATABASE_PATH)
+                db_dest.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Close any active handle before overriding
+                db.close()
+                shutil.copy2(db_src, db_dest)
+                logger.info(f"Database successfully restored to {db_dest}")
+                
+            # 2. Restore sessions
+            sessions_src_dir = temp_dir / "sessions"
+            if sessions_src_dir.is_dir():
+                sessions_dest_dir = Path("sessions")
+                sessions_dest_dir.mkdir(parents=True, exist_ok=True)
+                for session_file in sessions_src_dir.glob("*.session"):
+                    shutil.copy2(session_file, sessions_dest_dir / session_file.name)
+                for journal_file in sessions_src_dir.glob("*.session-journal"):
+                    shutil.copy2(journal_file, sessions_dest_dir / journal_file.name)
+                logger.info("Session files successfully restored.")
+                
+            return True
+        finally:
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir)
+
 backup_svc = BackupService()
