@@ -288,6 +288,36 @@ class Database:
                 ("Halo! Ini adalah template promo default. Silakan ganti dengan promo Anda.", now_str, now_str)
             )
 
+        # Deduplicate groups by lowercase username if any exist
+        try:
+            duplicates = await self.fetchall(
+                """
+                SELECT id, username FROM groups 
+                WHERE LOWER(username) IN (
+                    SELECT LOWER(username) FROM groups 
+                    GROUP BY LOWER(username) 
+                    HAVING COUNT(*) > 1
+                )
+                ORDER BY LOWER(username) ASC, id ASC
+                """
+            )
+            if duplicates:
+                seen = set()
+                to_delete = []
+                for row in duplicates:
+                    lower_uname = row["username"].lower()
+                    if lower_uname in seen:
+                        to_delete.append(row["id"])
+                    else:
+                        seen.add(lower_uname)
+                
+                if to_delete:
+                    logger.info(f"Database Initialization: Cleaning up {len(to_delete)} duplicate group entries...")
+                    placeholders = ",".join("?" for _ in to_delete)
+                    await self.execute(f"DELETE FROM groups WHERE id IN ({placeholders})", tuple(to_delete))
+        except Exception as dedup_err:
+            logger.error(f"Error deduplicating groups in database startup: {dedup_err}")
+
         logger.info("Database schema initialized and default settings verified.")
 
 # Instantiated single instance of database

@@ -106,6 +106,9 @@ class WaveService:
             for idx, grp in enumerate(groups):
                 partitioned_groups[idx % num_clients].append(grp)
             
+            # Track targets processed in this wave to avoid duplicate sends from multiple bots
+            processed_targets = set()
+            
             async def run_client_worker(client, client_groups, worker_id):
                 nonlocal success_count, fail_count
                 try:
@@ -135,6 +138,13 @@ class WaveService:
                     if target.replace("-", "").isdigit():
                         target = int(target)
                         
+                    # Pre-checking: check if target username has already been processed in this wave
+                    target_norm = str(target).strip().lower()
+                    if target_norm in processed_targets:
+                        logger.info(f"Worker #{worker_id} ({client_name}): Target {target_norm} already processed in this wave. Skipping.")
+                        continue
+                    processed_targets.add(target_norm)
+                    
                     grp_id = grp["id"]
                     grp_title = grp["title"] or "No Title"
                     selected_template = get_next_template()
@@ -154,7 +164,28 @@ class WaveService:
                             except Exception as ent_err:
                                 logger.warning(f"Could not resolve entity for {grp_title} ({target}): {ent_err}")
                         
+                        # Peer ID check: check if the unique Telegram Peer ID has already been processed in this wave
                         if entity:
+                            from telethon.utils import get_peer_id
+                            try:
+                                entity_peer_id = get_peer_id(entity)
+                            except Exception:
+                                entity_peer_id = getattr(entity, 'id', None)
+                                
+                            if entity_peer_id is not None:
+                                entity_peer_key = f"id:{entity_peer_id}"
+                                if entity_peer_key in processed_targets:
+                                    logger.info(f"Worker #{worker_id} ({client_name}): Target group {grp_title} (ID: {entity_peer_id}) already processed in this wave. Skipping.")
+                                    await db.execute(
+                                        """
+                                        INSERT INTO wave_log_items (wave_log_id, group_id, group_title, status, error_message, message_id)
+                                        VALUES (?, ?, ?, 'skipped', 'Deduplication: Already processed by another worker', NULL)
+                                        """,
+                                        (wave_log_id, grp_id, grp_title)
+                                    )
+                                    continue
+                                processed_targets.add(entity_peer_key)
+                                
                             if isinstance(entity, Channel) and getattr(entity, 'left', True):
                                 logger.info(f"Account {client_name} is not in group {grp_title}. Attempting to join...")
                                 try:

@@ -39,6 +39,11 @@ def clean_username_input(raw_input: str) -> str:
         # Prepend @ if it's a clean username and doesn't start with it or isn't a numeric ID
         if not cleaned.startswith("@") and not cleaned.replace("-", "").isdigit():
             cleaned = "@" + cleaned
+            
+    # Enforce lowercase for usernames to prevent duplicates due to case mismatch
+    if cleaned.startswith("@"):
+        cleaned = cleaned.lower()
+        
     return cleaned
 
 class GroupService:
@@ -134,7 +139,7 @@ class GroupService:
             from telethon.utils import get_peer_id
             # If the entity has a username, store it. Otherwise, store the signed peer ID.
             if getattr(entity, "username", None):
-                db_username = "@" + entity.username
+                db_username = "@" + entity.username.lower()
             else:
                 db_username = str(get_peer_id(entity))
                 
