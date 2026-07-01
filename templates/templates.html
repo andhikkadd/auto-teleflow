@@ -85,6 +85,18 @@
                 <div class="glass-card">
                     <h5 class="fw-bold mb-4"><i class="bi bi-folder-symlink text-primary me-2"></i>Saved Templates (Regular)</h5>
                     
+                    {% if templates %}
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-30">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="selectAllRegular" onchange="toggleSelectAll('regular')">
+                            <label class="form-check-label text-secondary small fw-semibold ms-1" for="selectAllRegular">Pilih Semua</label>
+                        </div>
+                        <button class="btn btn-danger-custom btn-sm btn-custom d-none" id="deleteSelectedRegularBtn" onclick="triggerDeleteSelectedModal('regular')">
+                            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedRegularCount">0</span>)
+                        </button>
+                    </div>
+                    {% endif %}
+                    
                     {% if not templates %}
                     <div class="text-center py-5 text-secondary">
                         <i class="bi bi-card-text" style="font-size: 3rem;"></i>
@@ -96,7 +108,12 @@
                         <div class="border border-secondary rounded p-3 bg-dark bg-opacity-20 d-flex flex-column justify-content-between">
                             <div>
                                 <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-50">
-                                    <span class="text-secondary small fw-bold"><i class="bi bi-hash me-1"></i>Template ID #{{ t.id }}</span>
+                                    <div class="form-check m-0">
+                                        <input class="form-check-input regular-checkbox" type="checkbox" value="{{ t.id }}" id="chk-reg-{{ t.id }}" onchange="updateSelectedCount('regular')">
+                                        <label class="form-check-label text-secondary small fw-bold ms-1" for="chk-reg-{{ t.id }}">
+                                            <i class="bi bi-hash me-1"></i>Template ID #{{ t.id }}
+                                        </label>
+                                    </div>
                                     <span class="badge-custom badge-active"><i class="bi bi-check-circle me-1"></i>Active</span>
                                 </div>
                                 <div style="white-space: pre-wrap;" class="text-secondary small font-monospace">{{ t.text }}</div>
@@ -181,6 +198,18 @@
                 <div class="glass-card">
                     <h5 class="fw-bold mb-4"><i class="bi bi-clock-history text-warning me-2"></i>Saved Override Templates</h5>
                     
+                    {% if override_templates %}
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-30">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="selectAllOverride" onchange="toggleSelectAll('override')">
+                            <label class="form-check-label text-secondary small fw-semibold ms-1" for="selectAllOverride">Pilih Semua</label>
+                        </div>
+                        <button class="btn btn-danger-custom btn-sm btn-custom d-none" id="deleteSelectedOverrideBtn" onclick="triggerDeleteSelectedModal('override')">
+                            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedOverrideCount">0</span>)
+                        </button>
+                    </div>
+                    {% endif %}
+                    
                     {% if not override_templates %}
                     <div class="text-center py-4 text-secondary">
                         <i class="bi bi-calendar-x" style="font-size: 2.5rem;"></i>
@@ -192,7 +221,12 @@
                         <div class="border border-secondary rounded p-3 bg-dark bg-opacity-20 d-flex flex-column justify-content-between">
                             <div>
                                 <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-50">
-                                    <span class="text-secondary small fw-bold"><i class="bi bi-hash me-1"></i>Override ID #{{ ot.id }}</span>
+                                    <div class="form-check m-0">
+                                        <input class="form-check-input override-checkbox" type="checkbox" value="{{ ot.id }}" id="chk-ovr-{{ ot.id }}" onchange="updateSelectedCount('override')">
+                                        <label class="form-check-label text-secondary small fw-bold ms-1" for="chk-ovr-{{ ot.id }}">
+                                            <i class="bi bi-hash me-1"></i>Override ID #{{ ot.id }}
+                                        </label>
+                                    </div>
                                     <span class="badge-custom badge-active"><i class="bi bi-info-circle me-1"></i>Override Template</span>
                                 </div>
                                 <div style="white-space: pre-wrap;" class="text-secondary small font-monospace">{{ ot.text }}</div>
@@ -235,6 +269,30 @@
     </div>
 </div>
 
+<!-- Modal for Multiple Delete Confirmation -->
+<div class="modal fade" id="deleteMultipleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-octagon me-2"></i>Confirm Bulk Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-secondary">
+                <p>Apakah Anda yakin ingin menghapus permanen <strong id="deleteCountText" class="text-white"></strong> template yang dipilih?</p>
+                <p class="mb-0 text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Tindakan ini akan menghapus semua template terpilih dari sistem. Minimal harus menyisakan 1 template regular aktif di sistem.</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-custom btn-secondary-custom" data-bs-dismiss="modal">Cancel</button>
+                <form action="/templates/delete-multiple" method="post" class="m-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="ids" id="deleteMultipleIdsInput" value="">
+                    <button type="submit" class="btn btn-custom btn-danger-custom">Hapus Semua</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
@@ -243,6 +301,55 @@
         document.getElementById('deleteTargetId').innerText = id;
         document.getElementById('deleteForm').action = '/templates/' + id + '/delete';
         new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    function toggleSelectAll(type) {
+        const selectAllChk = document.getElementById(type === 'regular' ? 'selectAllRegular' : 'selectAllOverride');
+        const checkboxes = document.querySelectorAll(type === 'regular' ? '.regular-checkbox' : '.override-checkbox');
+        checkboxes.forEach(chk => {
+            chk.checked = selectAllChk.checked;
+        });
+        updateSelectedCount(type);
+    }
+
+    function updateSelectedCount(type) {
+        const checkboxes = document.querySelectorAll(type === 'regular' ? '.regular-checkbox' : '.override-checkbox');
+        let selectedCount = 0;
+        checkboxes.forEach(chk => {
+            if (chk.checked) selectedCount++;
+        });
+        
+        const countSpan = document.getElementById(type === 'regular' ? 'selectedRegularCount' : 'selectedOverrideCount');
+        const deleteBtn = document.getElementById(type === 'regular' ? 'deleteSelectedRegularBtn' : 'deleteSelectedOverrideBtn');
+        
+        if (countSpan) countSpan.innerText = selectedCount;
+        
+        if (deleteBtn) {
+            if (selectedCount > 0) {
+                deleteBtn.classList.remove('d-none');
+            } else {
+                deleteBtn.classList.add('d-none');
+            }
+        }
+        
+        const selectAllChk = document.getElementById(type === 'regular' ? 'selectAllRegular' : 'selectAllOverride');
+        if (selectAllChk) {
+            selectAllChk.checked = (selectedCount === checkboxes.length && checkboxes.length > 0);
+        }
+    }
+
+    function triggerDeleteSelectedModal(type) {
+        const checkboxes = document.querySelectorAll(type === 'regular' ? '.regular-checkbox' : '.override-checkbox');
+        const selectedIds = [];
+        checkboxes.forEach(chk => {
+            if (chk.checked) selectedIds.push(chk.value);
+        });
+        
+        if (selectedIds.length === 0) return;
+        
+        document.getElementById('deleteCountText').innerText = selectedIds.length;
+        document.getElementById('deleteMultipleIdsInput').value = selectedIds.join(',');
+        new bootstrap.Modal(document.getElementById('deleteMultipleModal')).show();
     }
 
     // Persist active tab across reloads using localStorage

@@ -54,6 +54,61 @@ async def register_handlers(clients: list = None):
         except Exception:
             me = None
 
+        # 1. Restrict command execution to Private Chats (PM) or the configured Control Group Target
+        from services.settings_service import settings_svc
+        control_group_raw = await settings_svc.get_setting("control_group", "")
+        
+        is_allowed_chat = False
+        if event.is_private:
+            is_allowed_chat = True
+        else:
+            if control_group_raw:
+                clean_control = control_group_raw.strip()
+                chat_id_str = str(event.chat_id)
+                
+                # Check for direct ID match (e.g. -100123456789)
+                if clean_control == chat_id_str:
+                    is_allowed_chat = True
+                else:
+                    resolved_id = None
+                    try:
+                        if clean_control.replace("-", "").isdigit():
+                            resolved_id = int(clean_control)
+                        else:
+                            from utils import resolve_target_entity
+                            entity = await resolve_target_entity(event.client, clean_control)
+                            if entity:
+                                from telethon.utils import get_peer_id
+                                resolved_id = get_peer_id(entity)
+                    except Exception as resolve_err:
+                        logger.warning(f"Could not resolve control group entity {clean_control}: {resolve_err}")
+
+                    if resolved_id is not None:
+                        try:
+                            from telethon.utils import get_peer_id
+                            event_peer_id = get_peer_id(await event.get_input_chat())
+                            if event_peer_id == resolved_id:
+                                is_allowed_chat = True
+                        except Exception:
+                            if event.chat_id == resolved_id or str(event.chat_id) == str(resolved_id):
+                                is_allowed_chat = True
+                    
+                    if not is_allowed_chat:
+                        try:
+                            chat = await event.get_chat()
+                            chat_username = getattr(chat, "username", None)
+                            if chat_username and clean_control.lstrip("@").lower() == chat_username.lower():
+                                is_allowed_chat = True
+                        except Exception:
+                            pass
+            else:
+                # If control_group is not set, allow commands anywhere for backward compatibility
+                is_allowed_chat = True
+                
+        if not is_allowed_chat:
+            # Silently ignore to avoid leakage or spam in public groups
+            return
+
         # Verify authorization
         authorized = is_authorized(sender_id, sender_username)
         
@@ -139,63 +194,9 @@ async def register_handlers(clients: list = None):
         )
         
         if not authorized:
-            logger.warning(f"Unauthorized command attempt by user {sender_id} (@{sender_username}): {event.text}")
-            # Silently ignore to prevent disclosure of bot's active existence
-            return
-
-        # Restrict command execution to Private Chats (PM) or the configured Control Group Target
-        from services.settings_service import settings_svc
-        control_group_raw = await settings_svc.get_setting("control_group", "")
-        
-        is_allowed_chat = False
-        if event.is_private:
-            is_allowed_chat = True
-        else:
-            if control_group_raw:
-                clean_control = control_group_raw.strip()
-                chat_id_str = str(event.chat_id)
-                
-                # Check for direct ID match (e.g. -100123456789)
-                if clean_control == chat_id_str:
-                    is_allowed_chat = True
-                else:
-                    resolved_id = None
-                    try:
-                        if clean_control.replace("-", "").isdigit():
-                            resolved_id = int(clean_control)
-                        else:
-                            from utils import resolve_target_entity
-                            entity = await resolve_target_entity(event.client, clean_control)
-                            if entity:
-                                from telethon.utils import get_peer_id
-                                resolved_id = get_peer_id(entity)
-                    except Exception as resolve_err:
-                        logger.warning(f"Could not resolve control group entity {clean_control}: {resolve_err}")
-
-                    if resolved_id is not None:
-                        try:
-                            from telethon.utils import get_peer_id
-                            event_peer_id = get_peer_id(await event.get_input_chat())
-                            if event_peer_id == resolved_id:
-                                is_allowed_chat = True
-                        except Exception:
-                            if event.chat_id == resolved_id or str(event.chat_id) == str(resolved_id):
-                                is_allowed_chat = True
-                    
-                    if not is_allowed_chat:
-                        try:
-                            chat = await event.get_chat()
-                            chat_username = getattr(chat, "username", None)
-                            if chat_username and clean_control.lstrip("@").lower() == chat_username.lower():
-                                is_allowed_chat = True
-                        except Exception:
-                            pass
-            else:
-                # If control_group is not set, allow commands anywhere for backward compatibility
-                is_allowed_chat = True
-                
-        if not is_allowed_chat:
-            # Silently ignore to avoid leakage or spam in public groups
+            # Clean and truncate message text to avoid console spam
+            preview = (event.text or "")[:60].replace('\n', ' ') + ('...' if len(event.text or "") > 60 else '')
+            logger.warning(f"Unauthorized command attempt by user {sender_id} (@{sender_username}) in {'PM' if event.is_private else 'control group'}: {preview}")
             return
 
         # Parse command
@@ -661,19 +662,45 @@ async def handle_addtemplates(event, arg_str):
         await event.reply("❌ Tidak ada template yang berhasil ditambahkan.")
 
 async def handle_deltemplate(event, arg_str):
-    if not arg_str or not arg_str.isdigit():
-        await event.reply("⚠️ Gunakan: `!deltemplate <ID_template_DB>`")
+    if not arg_str:
+        await event.reply("⚠️ Gunakan: `!deltemplate <ID_1> <ID_2> ...` atau `!deltemplate <ID_1>,<ID_2>,...`")
         return
         
-    t_id = int(arg_str)
-    # Check minimum active template constraint
-    active_temps = await template_svc.get_active_templates()
-    if len(active_temps) <= 1:
-        await event.reply("❌ **Gagal menghapus**: Minimal harus menyisakan 1 template aktif di sistem.")
+    import re
+    id_strs = re.findall(r'\d+', arg_str)
+    if not id_strs:
+        await event.reply("⚠️ Tidak ada ID template numerik yang valid ditemukan.")
         return
         
-    await template_svc.delete_template(t_id)
-    await event.reply(f"🗑️ Template ID `{t_id}` berhasil dihapus.")
+    t_ids = [int(x) for x in id_strs]
+    
+    # Check minimum active template constraint for regular templates
+    all_active_regular = await template_svc.get_active_templates(include_override=False)
+    regular_active_ids = {t["id"] for t in all_active_regular}
+    
+    to_delete_regular_ids = [tid for tid in t_ids if tid in regular_active_ids]
+    
+    if len(to_delete_regular_ids) >= len(regular_active_ids):
+        await event.reply("❌ **Gagal menghapus**: Pengapusan dibatalkan karena minimal harus menyisakan 1 template regular aktif di sistem.")
+        return
+        
+    deleted_ids = []
+    not_found_ids = []
+    for t_id in t_ids:
+        exist = await db.fetchone("SELECT id FROM templates WHERE id = ?", (t_id,))
+        if exist:
+            await template_svc.delete_template(t_id)
+            deleted_ids.append(t_id)
+        else:
+            not_found_ids.append(t_id)
+            
+    response_msg = ""
+    if deleted_ids:
+        response_msg += f"🗑️ Template ID `{', '.join(map(str, deleted_ids))}` berhasil dihapus.\n"
+    if not_found_ids:
+        response_msg += f"⚠️ Template ID `{', '.join(map(str, not_found_ids))}` tidak ditemukan di database."
+        
+    await event.reply(response_msg.strip())
 
 async def handle_preview(event):
     templates = await template_svc.get_active_templates()

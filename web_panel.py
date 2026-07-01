@@ -628,6 +628,41 @@ async def post_delete_template(request: Request, id: int):
         
     return RedirectResponse(url=f"/templates?tab={redirect_tab}", status_code=303)
 
+@app.post("/templates/delete-multiple")
+async def post_delete_multiple_templates(request: Request, ids: str = Form(...)):
+    import re
+    parsed_ids = [int(x) for x in re.findall(r'\d+', ids)]
+    if not parsed_ids:
+        request.session["flash_danger"] = "Tidak ada template yang dipilih untuk dihapus."
+        return RedirectResponse(url="/templates", status_code=303)
+
+    first_temp = await db.fetchone("SELECT is_override FROM templates WHERE id = ?", (parsed_ids[0],))
+    is_override = first_temp.get("is_override", 0) if first_temp else 0
+    redirect_tab = "override" if is_override == 1 else "regular"
+
+    try:
+        if is_override != 1:
+            all_active_regular = await template_svc.get_active_templates(include_override=False)
+            regular_active_ids = {t["id"] for t in all_active_regular}
+            to_delete_regular_ids = [tid for tid in parsed_ids if tid in regular_active_ids]
+            
+            if len(to_delete_regular_ids) >= len(regular_active_ids):
+                request.session["flash_danger"] = "Batal: Minimal harus menyisakan 1 template regular aktif di sistem."
+                return RedirectResponse(url=f"/templates?tab={redirect_tab}", status_code=303)
+
+        deleted_count = 0
+        for tid in parsed_ids:
+            exist = await db.fetchone("SELECT id FROM templates WHERE id = ?", (tid,))
+            if exist:
+                await template_svc.delete_template(tid)
+                deleted_count += 1
+                
+        request.session["flash_success"] = f"Berhasil menghapus {deleted_count} template."
+    except Exception as e:
+        request.session["flash_danger"] = f"Gagal menghapus beberapa template: {e}"
+
+    return RedirectResponse(url=f"/templates?tab={redirect_tab}", status_code=303)
+
 @app.get("/settings")
 async def get_settings(request: Request):
     settings_dict = await settings_svc.get_all_settings()
