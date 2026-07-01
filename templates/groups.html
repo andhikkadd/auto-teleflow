@@ -69,7 +69,25 @@
             <!-- Groups list table -->
             <div class="col-lg-8 mb-4">
                 <div class="glass-card">
-                    <h5 class="fw-bold mb-3"><i class="bi bi-list text-primary me-2"></i>Target Channels List</h5>
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                        <h5 class="fw-bold m-0"><i class="bi bi-list text-primary me-2"></i>Target Channels List</h5>
+                        <div id="bulkActionsContainer" class="d-none">
+                            <form action="/groups/bulk-action" method="post" id="bulkActionForm" class="d-inline-flex gap-2 m-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="ids" id="bulkActionIdsInput" value="">
+                                <input type="hidden" name="action" id="bulkActionInput" value="">
+                                <button type="button" class="btn btn-secondary-custom btn-sm btn-custom" onclick="submitBulkAction('skip')">
+                                    <i class="bi bi-slash-circle me-1"></i>Skip Terpilih (<span id="selectedGroupsCount">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-success btn-sm btn-custom" onclick="submitBulkAction('unskip')">
+                                    <i class="bi bi-play-circle me-1"></i>Unskip
+                                </button>
+                                <button type="button" class="btn btn-danger-custom btn-sm btn-custom" onclick="submitBulkAction('delete')">
+                                    <i class="bi bi-trash me-1"></i>Hapus
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                     
                     {% if not groups %}
                     <div class="text-center py-5 text-secondary">
@@ -81,6 +99,11 @@
                         <table class="table table-custom">
                             <thead>
                                 <tr>
+                                    <th style="width: 40px;">
+                                        <div class="form-check m-0">
+                                            <input class="form-check-input" type="checkbox" id="selectAllGroups" onchange="toggleSelectAllGroups()">
+                                        </div>
+                                    </th>
                                     <th>DB ID</th>
                                     <th>Group Title</th>
                                     <th>Status</th>
@@ -92,6 +115,11 @@
                             <tbody>
                                 {% for g in groups %}
                                 <tr>
+                                    <td>
+                                        <div class="form-check m-0">
+                                            <input class="form-check-input group-checkbox" type="checkbox" value="{{ g.id }}" onchange="updateSelectedGroupsCount()">
+                                        </div>
+                                    </td>
                                     <td><code>{{ g.id }}</code></td>
                                     <td>
                                         <div class="fw-semibold">{{ g.title or 'Unknown Title' }}</div>
@@ -272,10 +300,77 @@
     </div>
 </div>
 
+<!-- Modal for Bulk Delete Confirmation -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-danger"><i class="bi bi-exclamation-octagon me-2"></i>Confirm Bulk Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-secondary">
+                <p>Apakah Anda yakin ingin menghapus permanen <strong id="bulkDeleteCountText" class="text-white"></strong> grup yang dipilih?</p>
+                <p class="mb-0 text-danger small"><i class="bi bi-exclamation-triangle me-1"></i>Tindakan ini tidak dapat dibatalkan dan akan menghapus semua riwayat pengiriman grup tersebut.</p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-custom btn-secondary-custom" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-custom btn-danger-custom" onclick="executeBulkDelete()">Hapus</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
+    function toggleSelectAllGroups() {
+        const selectAll = document.getElementById("selectAllGroups");
+        const checkboxes = document.querySelectorAll(".group-checkbox");
+        checkboxes.forEach(cb => cb.checked = selectAll.checked);
+        updateSelectedGroupsCount();
+    }
+
+    function updateSelectedGroupsCount() {
+        const checkboxes = document.querySelectorAll(".group-checkbox:checked");
+        const count = checkboxes.length;
+        
+        const countSpan = document.getElementById("selectedGroupsCount");
+        const container = document.getElementById("bulkActionsContainer");
+        
+        if (countSpan) countSpan.innerText = count;
+        
+        if (container) {
+            if (count > 0) {
+                container.classList.remove("d-none");
+            } else {
+                container.classList.add("d-none");
+                const selectAll = document.getElementById("selectAllGroups");
+                if (selectAll) selectAll.checked = false;
+            }
+        }
+    }
+
+    function submitBulkAction(action) {
+        const checkboxes = document.querySelectorAll(".group-checkbox:checked");
+        const selectedIds = Array.from(checkboxes).map(cb => cb.value);
+        if (selectedIds.length === 0) return;
+
+        document.getElementById("bulkActionIdsInput").value = selectedIds.join(",");
+        document.getElementById("bulkActionInput").value = action;
+
+        if (action === "delete") {
+            document.getElementById("bulkDeleteCountText").innerText = selectedIds.length;
+            new bootstrap.Modal(document.getElementById("bulkDeleteModal")).show();
+        } else {
+            document.getElementById("bulkActionForm").submit();
+        }
+    }
+
+    function executeBulkDelete() {
+        document.getElementById("bulkActionForm").submit();
+    }
+
     function triggerTestModal(id, title) {
         document.getElementById('testModalTitle').innerText = 'Test Message to ' + title;
         document.getElementById('testForm').action = '/groups/' + id + '/test';
@@ -298,6 +393,17 @@
     }
 
     document.addEventListener("DOMContentLoaded", function() {
+        // Reset all group checkboxes on load to ensure clean sync state
+        try {
+            const checkboxes = document.querySelectorAll(".group-checkbox");
+            checkboxes.forEach(cb => cb.checked = false);
+            const selectAll = document.getElementById("selectAllGroups");
+            if (selectAll) selectAll.checked = false;
+            updateSelectedGroupsCount();
+        } catch (e) {
+            console.error("Failed to reset group checkboxes on load:", e);
+        }
+
         // Persist active tab across reloads
         const activeTabId = localStorage.getItem("activeGroupTab");
         if (activeTabId) {

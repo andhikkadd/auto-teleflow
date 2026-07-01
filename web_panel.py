@@ -292,6 +292,37 @@ async def post_add_group(request: Request, raw_input: str = Form(...)):
         
     return RedirectResponse(url="/groups", status_code=303)
 
+@app.post("/groups/bulk-action")
+async def post_groups_bulk_action(
+    request: Request,
+    action: str = Form(...),
+    ids: str = Form(...)
+):
+    try:
+        id_list = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()]
+        if not id_list:
+            request.session["flash_danger"] = "No groups selected for bulk action."
+            return RedirectResponse(url="/groups", status_code=303)
+
+        if action == "skip":
+            for group_id in id_list:
+                await group_svc.set_skip(group_id, True)
+            request.session["flash_success"] = f"Successfully skipped {len(id_list)} selected groups."
+        elif action == "unskip":
+            for group_id in id_list:
+                await group_svc.set_skip(group_id, False)
+            request.session["flash_success"] = f"Successfully unskipped {len(id_list)} selected groups."
+        elif action == "delete":
+            for group_id in id_list:
+                await group_svc.delete_group(group_id)
+            request.session["flash_success"] = f"Successfully deleted {len(id_list)} selected groups."
+        else:
+            request.session["flash_danger"] = f"Unknown bulk action: {action}"
+    except Exception as e:
+        request.session["flash_danger"] = f"Failed to execute bulk action: {e}"
+
+    return RedirectResponse(url="/groups", status_code=303)
+
 @app.post("/groups/{id}/skip")
 async def post_skip_group(request: Request, id: int):
     group = await group_svc.get_group(id)
