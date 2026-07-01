@@ -86,14 +86,28 @@
                     <h5 class="fw-bold mb-4"><i class="bi bi-folder-symlink text-primary me-2"></i>Saved Templates (Regular)</h5>
                     
                     {% if templates %}
-                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-30">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-30 gap-2">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="selectAllRegular" onchange="toggleSelectAll('regular')">
                             <label class="form-check-label text-secondary small fw-semibold ms-1" for="selectAllRegular">Pilih Semua</label>
                         </div>
-                        <button class="btn btn-danger-custom btn-sm btn-custom d-none" id="deleteSelectedRegularBtn" onclick="triggerDeleteSelectedModal('regular')">
-                            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedRegularCount">0</span>)
-                        </button>
+                        <div id="bulkActionsRegularContainer" class="d-none">
+                            <form action="/templates/bulk-action" method="post" id="bulkActionRegularForm" class="d-inline-flex gap-2 m-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="ids" id="bulkActionRegularIdsInput" value="">
+                                <input type="hidden" name="action" id="bulkActionRegularInput" value="">
+                                <input type="hidden" name="tab" value="regular">
+                                <button type="button" class="btn btn-success btn-sm btn-custom" onclick="submitTemplateBulkAction('regular', 'activate')">
+                                    <i class="bi bi-toggle-on me-1"></i>Aktifkan (<span id="selectedRegularCount">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-secondary-custom btn-sm btn-custom" onclick="submitTemplateBulkAction('regular', 'deactivate')">
+                                    <i class="bi bi-toggle-off me-1"></i>Nonaktifkan
+                                </button>
+                                <button type="button" class="btn btn-danger-custom btn-sm btn-custom" onclick="submitTemplateBulkAction('regular', 'delete')">
+                                    <i class="bi bi-trash me-1"></i>Hapus
+                                </button>
+                            </form>
+                        </div>
                     </div>
                     {% endif %}
                     
@@ -114,11 +128,32 @@
                                             <i class="bi bi-hash me-1"></i>Template ID #{{ t.id }}
                                         </label>
                                     </div>
-                                    <span class="badge-custom badge-active"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                    {% if t.is_active == 1 %}
+                                    <span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                    {% else %}
+                                    <span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Inactive</span>
+                                    {% endif %}
                                 </div>
                                 <div style="white-space: pre-wrap;" class="text-secondary small font-monospace">{{ t.text }}</div>
                             </div>
-                            <div class="text-end mt-3 pt-2 border-top border-secondary border-opacity-50">
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-50">
+                                <div>
+                                    {% if t.is_active == 1 %}
+                                    <form action="/templates/{{ t.id }}/toggle-active" method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-secondary-custom btn-sm btn-custom">
+                                            <i class="bi bi-toggle-off me-1"></i>Deactivate
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form action="/templates/{{ t.id }}/toggle-active" method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-success btn-sm btn-custom">
+                                            <i class="bi bi-toggle-on me-1"></i>Activate
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
                                 <button class="btn btn-danger-custom btn-sm btn-custom" onclick="triggerDeleteModal('{{ t.id }}')">
                                     <i class="bi bi-trash me-1"></i>Delete
                                 </button>
@@ -199,14 +234,28 @@
                     <h5 class="fw-bold mb-4"><i class="bi bi-clock-history text-warning me-2"></i>Saved Override Templates</h5>
                     
                     {% if override_templates %}
-                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-30">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-30 gap-2">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="selectAllOverride" onchange="toggleSelectAll('override')">
                             <label class="form-check-label text-secondary small fw-semibold ms-1" for="selectAllOverride">Pilih Semua</label>
                         </div>
-                        <button class="btn btn-danger-custom btn-sm btn-custom d-none" id="deleteSelectedOverrideBtn" onclick="triggerDeleteSelectedModal('override')">
-                            <i class="bi bi-trash me-1"></i>Hapus Terpilih (<span id="selectedOverrideCount">0</span>)
-                        </button>
+                        <div id="bulkActionsOverrideContainer" class="d-none">
+                            <form action="/templates/bulk-action" method="post" id="bulkActionOverrideForm" class="d-inline-flex gap-2 m-0">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="ids" id="bulkActionOverrideIdsInput" value="">
+                                <input type="hidden" name="action" id="bulkActionOverrideInput" value="">
+                                <input type="hidden" name="tab" value="override">
+                                <button type="button" class="btn btn-success btn-sm btn-custom" onclick="submitTemplateBulkAction('override', 'activate')">
+                                    <i class="bi bi-toggle-on me-1"></i>Aktifkan (<span id="selectedOverrideCount">0</span>)
+                                </button>
+                                <button type="button" class="btn btn-secondary-custom btn-sm btn-custom" onclick="submitTemplateBulkAction('override', 'deactivate')">
+                                    <i class="bi bi-toggle-off me-1"></i>Nonaktifkan
+                                </button>
+                                <button type="button" class="btn btn-danger-custom btn-sm btn-custom" onclick="submitTemplateBulkAction('override', 'delete')">
+                                    <i class="bi bi-trash me-1"></i>Hapus
+                                </button>
+                            </form>
+                        </div>
                     </div>
                     {% endif %}
                     
@@ -227,11 +276,32 @@
                                             <i class="bi bi-hash me-1"></i>Override ID #{{ ot.id }}
                                         </label>
                                     </div>
-                                    <span class="badge-custom badge-active"><i class="bi bi-info-circle me-1"></i>Override Template</span>
+                                    {% if ot.is_active == 1 %}
+                                    <span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
+                                    {% else %}
+                                    <span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Inactive</span>
+                                    {% endif %}
                                 </div>
                                 <div style="white-space: pre-wrap;" class="text-secondary small font-monospace">{{ ot.text }}</div>
                             </div>
-                            <div class="text-end mt-3 pt-2 border-top border-secondary border-opacity-50">
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-50">
+                                <div>
+                                    {% if ot.is_active == 1 %}
+                                    <form action="/templates/{{ ot.id }}/toggle-active" method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-secondary-custom btn-sm btn-custom">
+                                            <i class="bi bi-toggle-off me-1"></i>Deactivate
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <form action="/templates/{{ ot.id }}/toggle-active" method="post" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-success btn-sm btn-custom">
+                                            <i class="bi bi-toggle-on me-1"></i>Activate
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </div>
                                 <button class="btn btn-danger-custom btn-sm btn-custom" onclick="triggerDeleteModal('{{ ot.id }}')">
                                     <i class="bi bi-trash me-1"></i>Delete
                                 </button>
@@ -283,9 +353,11 @@
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-custom btn-secondary-custom" data-bs-dismiss="modal">Cancel</button>
-                <form action="/templates/delete-multiple" method="post" class="m-0">
+                <form action="/templates/bulk-action" method="post" class="m-0" id="deleteMultipleForm">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="ids" id="deleteMultipleIdsInput" value="">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="tab" id="deleteMultipleTabInput" value="regular">
                     <button type="submit" class="btn btn-custom btn-danger-custom">Hapus Semua</button>
                 </form>
             </div>
@@ -320,15 +392,15 @@
         });
         
         const countSpan = document.getElementById(type === 'regular' ? 'selectedRegularCount' : 'selectedOverrideCount');
-        const deleteBtn = document.getElementById(type === 'regular' ? 'deleteSelectedRegularBtn' : 'deleteSelectedOverrideBtn');
+        const container = document.getElementById(type === 'regular' ? 'bulkActionsRegularContainer' : 'bulkActionsOverrideContainer');
         
         if (countSpan) countSpan.innerText = selectedCount;
         
-        if (deleteBtn) {
+        if (container) {
             if (selectedCount > 0) {
-                deleteBtn.classList.remove('d-none');
+                container.classList.remove('d-none');
             } else {
-                deleteBtn.classList.add('d-none');
+                container.classList.add('d-none');
             }
         }
         
@@ -338,7 +410,7 @@
         }
     }
 
-    function triggerDeleteSelectedModal(type) {
+    function submitTemplateBulkAction(type, action) {
         const checkboxes = document.querySelectorAll(type === 'regular' ? '.regular-checkbox' : '.override-checkbox');
         const selectedIds = [];
         checkboxes.forEach(chk => {
@@ -347,9 +419,21 @@
         
         if (selectedIds.length === 0) return;
         
-        document.getElementById('deleteCountText').innerText = selectedIds.length;
-        document.getElementById('deleteMultipleIdsInput').value = selectedIds.join(',');
-        new bootstrap.Modal(document.getElementById('deleteMultipleModal')).show();
+        const idsInput = document.getElementById(type === 'regular' ? 'bulkActionRegularIdsInput' : 'bulkActionOverrideIdsInput');
+        const actionInput = document.getElementById(type === 'regular' ? 'bulkActionRegularInput' : 'bulkActionOverrideInput');
+        const form = document.getElementById(type === 'regular' ? 'bulkActionRegularForm' : 'bulkActionOverrideForm');
+        
+        if (idsInput) idsInput.value = selectedIds.join(',');
+        if (actionInput) actionInput.value = action;
+        
+        if (action === 'delete') {
+            document.getElementById('deleteCountText').innerText = selectedIds.length;
+            document.getElementById('deleteMultipleIdsInput').value = selectedIds.join(',');
+            document.getElementById('deleteMultipleTabInput').value = type;
+            new bootstrap.Modal(document.getElementById('deleteMultipleModal')).show();
+        } else {
+            if (form) form.submit();
+        }
     }
 
     // Persist active tab across reloads using localStorage

@@ -637,7 +637,7 @@ async def post_add_override_template(request: Request, text: str = Form(...)):
 async def post_delete_template(request: Request, id: int):
     template = await db.fetchone("SELECT * FROM templates WHERE id = ?", (id,))
     if not template:
-        request.session["flash_danger"] = f"Template dengan ID {id} not found."
+        request.session["flash_danger"] = f"Template dengan ID {id} tidak ditemukan."
         return RedirectResponse(url="/templates", status_code=303)
 
     is_override = template.get("is_override", 0)
@@ -648,8 +648,9 @@ async def post_delete_template(request: Request, id: int):
         if is_override != 1:
             # Check that we have at least one active template remaining in DB
             active_templates = await template_svc.get_active_templates(include_override=False)
-            if len(active_templates) <= 1:
-                request.session["flash_danger"] = "Abort: At least one active promotion template must remain in the system."
+            active_ids = {t["id"] for t in active_templates}
+            if id in active_ids and len(active_templates) <= 1:
+                request.session["flash_danger"] = "Abort: Setidaknya harus ada 1 template regular aktif yang tersisa di sistem."
                 return RedirectResponse(url=f"/templates?tab={redirect_tab}", status_code=303)
 
         await template_svc.delete_template(id)
@@ -659,40 +660,83 @@ async def post_delete_template(request: Request, id: int):
         
     return RedirectResponse(url=f"/templates?tab={redirect_tab}", status_code=303)
 
-@app.post("/templates/delete-multiple")
-async def post_delete_multiple_templates(request: Request, ids: str = Form(...)):
-    import re
-    parsed_ids = [int(x) for x in re.findall(r'\d+', ids)]
-    if not parsed_ids:
-        request.session["flash_danger"] = "Tidak ada template yang dipilih untuk dihapus."
+@app.post("/templates/{id}/toggle-active")
+async def post_toggle_template_active(request: Request, id: int):
+    template = await db.fetchone("SELECT * FROM templates WHERE id = ?", (id,))
+    if not template:
+        request.session["flash_danger"] = f"Template dengan ID {id} tidak ditemukan."
         return RedirectResponse(url="/templates", status_code=303)
 
-    first_temp = await db.fetchone("SELECT is_override FROM templates WHERE id = ?", (parsed_ids[0],))
-    is_override = first_temp.get("is_override", 0) if first_temp else 0
+    is_override = template.get("is_override", 0)
     redirect_tab = "override" if is_override == 1 else "regular"
+    current_active = template.get("is_active", 1)
+    new_active = 0 if current_active == 1 else 1
 
     try:
-        if is_override != 1:
-            all_active_regular = await template_svc.get_active_templates(include_override=False)
-            regular_active_ids = {t["id"] for t in all_active_regular}
-            to_delete_regular_ids = [tid for tid in parsed_ids if tid in regular_active_ids]
-            
-            if len(to_delete_regular_ids) >= len(regular_active_ids):
-                request.session["flash_danger"] = "Batal: Minimal harus menyisakan 1 template regular aktif di sistem."
+        # If deactivating a regular template, check that we have at least one active template remaining
+        if is_override != 1 and new_active == 0:
+            active_templates = await template_svc.get_active_templates(include_override=False)
+            if len(active_templates) <= 1:
+                request.session["flash_danger"] = "Abort: Setidaknya harus ada 1 template regular aktif yang tersisa di sistem."
                 return RedirectResponse(url=f"/templates?tab={redirect_tab}", status_code=303)
 
-        deleted_count = 0
-        for tid in parsed_ids:
-            exist = await db.fetchone("SELECT id FROM templates WHERE id = ?", (tid,))
-            if exist:
-                await template_svc.delete_template(tid)
-                deleted_count += 1
-                
-        request.session["flash_success"] = f"Berhasil menghapus {deleted_count} template."
+        await db.execute("UPDATE templates SET is_active = ?, updated_at = ? WHERE id = ?", (new_active, datetime.now().isoformat(), id))
+        status_name = "aktif" if new_active == 1 else "nonaktif"
+        request.session["flash_success"] = f"Template ID {id} berhasil di{status_name}kan."
     except Exception as e:
-        request.session["flash_danger"] = f"Gagal menghapus beberapa template: {e}"
+        request.session["flash_danger"] = f"Gagal mengubah status template: {e}"
 
     return RedirectResponse(url=f"/templates?tab={redirect_tab}", status_code=303)
+
+@app.post("/templates/bulk-action")
+async def post_templates_bulk_action(
+    request: Request,
+    action: str = Form(...),
+    ids: str = Form(...),
+    tab: str = Form("regular")
+):
+    try:
+        id_list = [int(x.strip()) for x in ids.split(",") if x.strip().isdigit()]
+        if not id_list:
+            request.session["flash_danger"] = "Tidak ada template yang dipilih."
+            return RedirectResponse(url=f"/templates?tab={tab}", status_code=303)
+
+        if action == "activate":
+            for temp_id in id_list:
+                await db.execute("UPDATE templates SET is_active = 1, updated_at = ? WHERE id = ?", (datetime.now().isoformat(), temp_id))
+            request.session["flash_success"] = f"Berhasil mengaktifkan {len(id_list)} template yang dipilih."
+        elif action == "deactivate":
+            # Safety check: if tab is regular, we must keep at least one active template in the database
+            if tab == "regular":
+                all_active = await template_svc.get_active_templates(include_override=False)
+                active_ids = {t["id"] for t in all_active}
+                to_deactivate = [tid for tid in id_list if tid in active_ids]
+                if len(to_deactivate) >= len(active_ids):
+                    request.session["flash_danger"] = "Abort: Setidaknya harus ada 1 template regular aktif yang tersisa di sistem."
+                    return RedirectResponse(url=f"/templates?tab={tab}", status_code=303)
+
+            for temp_id in id_list:
+                await db.execute("UPDATE templates SET is_active = 0, updated_at = ? WHERE id = ?", (datetime.now().isoformat(), temp_id))
+            request.session["flash_success"] = f"Berhasil menonaktifkan {len(id_list)} template yang dipilih."
+        elif action == "delete":
+            # Safety check: if tab is regular, we must keep at least one active template in the database
+            if tab == "regular":
+                all_active = await template_svc.get_active_templates(include_override=False)
+                active_ids = {t["id"] for t in all_active}
+                to_delete = [tid for tid in id_list if tid in active_ids]
+                if len(to_delete) >= len(active_ids):
+                    request.session["flash_danger"] = "Abort: Setidaknya harus ada 1 template regular aktif yang tersisa di sistem."
+                    return RedirectResponse(url=f"/templates?tab={tab}", status_code=303)
+
+            for temp_id in id_list:
+                await template_svc.delete_template(temp_id)
+            request.session["flash_success"] = f"Berhasil menghapus {len(id_list)} template yang dipilih."
+        else:
+            request.session["flash_danger"] = f"Aksi massal tidak dikenal: {action}"
+    except Exception as e:
+        request.session["flash_danger"] = f"Gagal menjalankan aksi massal: {e}"
+
+    return RedirectResponse(url=f"/templates?tab={tab}", status_code=303)
 
 @app.get("/settings")
 async def get_settings(request: Request):
