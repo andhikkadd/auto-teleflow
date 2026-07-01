@@ -112,14 +112,40 @@ def get_client(session_name: str = None) -> TelegramClient:
                 log_url = f"{scheme_part[0]}//***:***@{parts[1]}"
             logger.info(f"Session '{session_name}' using proxy: {log_url}")
             
-        _clients[session_name] = TelegramClient(
-            session_path,
-            config.API_ID,
-            config.API_HASH,
-            connection_retries=10,
-            retry_delay=5,
-            proxy=proxy_config
-        )
+        import sqlite3
+        try:
+            _clients[session_name] = TelegramClient(
+                session_path,
+                config.API_ID,
+                config.API_HASH,
+                connection_retries=10,
+                retry_delay=5,
+                proxy=proxy_config
+            )
+        except sqlite3.DatabaseError as db_err:
+            if "malformed" in str(db_err).lower():
+                logger.error(f"Database session file '{session_path}.session' is malformed/corrupted. Renaming and recreating...")
+                try:
+                    p = Path(f"{session_path}.session")
+                    if p.exists():
+                        corrupt_p = Path(f"{session_path}.session.corrupted")
+                        if corrupt_p.exists():
+                            corrupt_p.unlink()
+                        p.rename(corrupt_p)
+                except Exception as rename_err:
+                    logger.error(f"Failed to rename malformed session file: {rename_err}")
+                
+                # Retry with clean/re-created session
+                _clients[session_name] = TelegramClient(
+                    session_path,
+                    config.API_ID,
+                    config.API_HASH,
+                    connection_retries=10,
+                    retry_delay=5,
+                    proxy=proxy_config
+                )
+            else:
+                raise
     return _clients[session_name]
 
 def is_session_active(session_name: str) -> bool:
