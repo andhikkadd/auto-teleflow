@@ -128,6 +128,31 @@
 
                 <hr class="border-secondary my-4">
 
+                <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-shield-check text-primary me-2"></i>Anti-Ban & Human Emulation</h6>
+
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="typing_simulation_enabled" name="typing_simulation_enabled" {% if settings.typing_simulation_enabled == '1' %}checked{% endif %}>
+                        <label class="form-check-label text-secondary small fw-semibold" for="typing_simulation_enabled">Enable Typing Emulation</label>
+                    </div>
+                    <div class="form-text text-muted small mt-1">If enabled, bot accounts will simulate a "typing..." action in groups before sending messages to mimic natural human behavior.</div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6 mb-3">
+                        <label for="typing_simulation_min" class="form-label text-secondary small fw-semibold">Min Typing Duration (Seconds)</label>
+                        <input type="number" class="form-control form-control-custom" id="typing_simulation_min" name="typing_simulation_min" value="{{ settings.typing_simulation_min or '3' }}" min="1" max="60" required style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div class="form-text text-muted small mt-1">Durasi minimum status "typing..." sebelum kirim.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="typing_simulation_max" class="form-label text-secondary small fw-semibold">Max Typing Duration (Seconds)</label>
+                        <input type="number" class="form-control form-control-custom" id="typing_simulation_max" name="typing_simulation_max" value="{{ settings.typing_simulation_max or '7' }}" min="1" max="60" required style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
+                        <div class="form-text text-muted small mt-1">Durasi maksimum status "typing..." sebelum kirim.</div>
+                    </div>
+                </div>
+
+                <hr class="border-secondary my-4">
+
                 <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-moon-stars text-primary me-2"></i>Human Mode Scheduler (Sleep Cycle)</h6>
 
                 <div class="mb-3">

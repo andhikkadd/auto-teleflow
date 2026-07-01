@@ -771,7 +771,10 @@ async def post_save_settings(
     human_mode_enabled: Optional[str] = Form(None),
     human_mode_sleep_start: str = Form("23:00"),
     human_mode_sleep_end: str = Form("06:00"),
-    timezone_offset: str = Form("7")
+    timezone_offset: str = Form("7"),
+    typing_simulation_enabled: Optional[str] = Form(None),
+    typing_simulation_min: int = Form(3),
+    typing_simulation_max: int = Form(7)
 ):
     try:
         # Input Validation Checks
@@ -787,6 +790,10 @@ async def post_save_settings(
             raise ValueError("Ghost auditing limit must be at least 1 message.")
         if auto_responder_cooldown < 1:
             raise ValueError("Auto-responder cooldown must be at least 1 hour.")
+        if typing_simulation_min < 0 or typing_simulation_max < 0:
+            raise ValueError("Typing emulation delay must be a positive integer.")
+        if typing_simulation_max < typing_simulation_min:
+            raise ValueError("Max typing emulation delay must be greater than or equal to min delay.")
             
         if human_mode_enabled is not None:
             try:
@@ -824,6 +831,10 @@ async def post_save_settings(
         await settings_svc.set_setting("human_mode_sleep_start", human_mode_sleep_start.strip())
         await settings_svc.set_setting("human_mode_sleep_end", human_mode_sleep_end.strip())
         await settings_svc.set_setting("timezone_offset", timezone_offset.strip())
+        
+        await settings_svc.set_setting("typing_simulation_enabled", "1" if typing_simulation_enabled is not None else "0")
+        await settings_svc.set_setting("typing_simulation_min", str(typing_simulation_min))
+        await settings_svc.set_setting("typing_simulation_max", str(typing_simulation_max))
         
         # Apply parameters to running state immediately
         state.min_delay = min_delay

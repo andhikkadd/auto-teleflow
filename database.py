@@ -265,6 +265,18 @@ class Database:
         )
         await self.execute(
             "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("typing_simulation_enabled", "1", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("typing_simulation_min", "3", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("typing_simulation_max", "7", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
             ("auto_responder_enabled", "0", now_str)
         )
         await self.execute(

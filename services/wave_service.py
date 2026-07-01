@@ -235,6 +235,25 @@ class WaveService:
                             except Exception as audit_err:
                                 logger.error(f"Error executing ghost auditing on {grp_title}: {audit_err}")
 
+                        # 0.5. Typing Status Emulation check
+                        try:
+                            typing_enabled = await settings_svc.get_setting("typing_simulation_enabled", "1")
+                            if typing_enabled == "1":
+                                min_t_raw = await settings_svc.get_setting("typing_simulation_min", "3")
+                                max_t_raw = await settings_svc.get_setting("typing_simulation_max", "7")
+                                try:
+                                    min_t = int(min_t_raw)
+                                    max_t = int(max_t_raw)
+                                except ValueError:
+                                    min_t, max_t = 3, 7
+                                
+                                typing_delay = random.randint(min(min_t, max_t), max(min_t, max_t))
+                                logger.info(f"Worker #{worker_id} ({client_name}): Simulating typing in {grp_title} for {typing_delay}s...")
+                                async with client.action(target, 'typing'):
+                                    await asyncio.sleep(typing_delay)
+                        except Exception as typing_err:
+                            logger.warning(f"Failed to simulate typing action in {grp_title}: {typing_err}")
+
                         logger.info(f"Worker #{worker_id} ({client_name}) sending message to {grp_title} ({grp['username']})...")
                         sent_msg = await client.send_message(target, selected_template)
                         
