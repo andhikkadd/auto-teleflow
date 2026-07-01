@@ -139,15 +139,25 @@
                 </div>
 
                 <div class="row mb-4">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="human_mode_sleep_start" class="form-label text-secondary small fw-semibold">Sleep Start Time (24h Format)</label>
                         <input type="text" class="form-control form-control-custom" id="human_mode_sleep_start" name="human_mode_sleep_start" value="{{ settings.human_mode_sleep_start or '23:00' }}" placeholder="23:00" required style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
                         <div class="form-text text-muted small mt-1">Saran: 22:00 atau 23:00.</div>
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label for="human_mode_sleep_end" class="form-label text-secondary small fw-semibold">Sleep End Time (24h Format)</label>
                         <input type="text" class="form-control form-control-custom" id="human_mode_sleep_end" name="human_mode_sleep_end" value="{{ settings.human_mode_sleep_end or '06:00' }}" placeholder="06:00" required style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
                         <div class="form-text text-muted small mt-1">Saran: 05:00 atau 06:00.</div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="timezone_offset" class="form-label text-secondary small fw-semibold">Timezone Offset (GMT/UTC)</label>
+                        <select class="form-select form-control-custom" id="timezone_offset" name="timezone_offset" style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
+                            <option value="0" {% if settings.timezone_offset == '0' %}selected{% endif %}>UTC / GMT (UTC+0)</option>
+                            <option value="7" {% if settings.timezone_offset == '7' or not settings.timezone_offset %}selected{% endif %}>WIB (UTC+7) - Jakarta</option>
+                            <option value="8" {% if settings.timezone_offset == '8' %}selected{% endif %}>WITA (UTC+8) - Bali/Makassar</option>
+                            <option value="9" {% if settings.timezone_offset == '9' %}selected{% endif %}>WIT (UTC+9) - Maluku/Papua</option>
+                        </select>
+                        <div class="form-text text-muted small mt-1">Zona waktu lokal Anda.</div>
                     </div>
                 </div>
 

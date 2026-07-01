@@ -11,6 +11,16 @@ import telegram_client
 
 logger = logging.getLogger("Scheduler")
 
+async def get_target_now() -> datetime:
+    """Helper to get current time adjusted by the configured timezone offset (default GMT+7 WIB)."""
+    tz_offset_str = await settings_svc.get_setting("timezone_offset", "7")
+    try:
+        tz_offset = float(tz_offset_str)
+    except ValueError:
+        tz_offset = 7.0
+    from datetime import timezone, timedelta
+    return (datetime.now(timezone.utc) + timedelta(hours=tz_offset)).replace(tzinfo=None)
+
 async def send_daily_summary_report(client):
     """Generates and dispatches a daily summary report of all waves run since the last report."""
     from database import db
@@ -22,9 +32,10 @@ async def send_daily_summary_report(client):
         return
         
     last_report_str = await settings_svc.get_setting("last_daily_report_time", "")
+    target_now = await get_target_now()
     if not last_report_str:
         # Default to 24 hours ago
-        last_report_dt = datetime.now() - timedelta(days=1)
+        last_report_dt = target_now - timedelta(days=1)
         last_report_str = last_report_dt.isoformat()
         
     # Fetch all wave logs since last report
@@ -45,7 +56,7 @@ async def send_daily_summary_report(client):
     
     report_msg = (
         f"📋 **Laporan Rangkuman Harian Bot Promo**\n"
-        f"• **Rentang**: `{datetime.fromisoformat(last_report_str).strftime('%Y-%m-%d %H:%M')} s/d {datetime.now().strftime('%Y-%m-%d %H:%M')}`\n"
+        f"• **Rentang**: `{datetime.fromisoformat(last_report_str).strftime('%Y-%m-%d %H:%M')} s/d {target_now.strftime('%Y-%m-%d %H:%M')}`\n"
         f"• **Total Wave**: `{total_waves} Sesi`\n"
         f"• **Hasil Akumulasi**: `{total_success} Sukses` / `{total_fail} Gagal`\n\n"
         f"💤 Bot sekarang memasuki mode tidur malam. Selamat beristirahat!"
@@ -53,7 +64,7 @@ async def send_daily_summary_report(client):
     
     try:
         await client.send_message(resolved_target, report_msg)
-        await settings_svc.set_setting("last_daily_report_time", datetime.now().isoformat())
+        await settings_svc.set_setting("last_daily_report_time", target_now.isoformat())
         logger.info("Daily summary report sent successfully.")
     except Exception as e:
         logger.error(f"Failed to send daily summary report: {e}")
@@ -101,7 +112,7 @@ async def start_scheduler():
 
             # Calculate next delay interval
             delay_minutes = random.randint(state.min_delay, state.max_delay)
-            state.next_run_time = datetime.now() + timedelta(minutes=delay_minutes)
+            state.next_run_time = (await get_target_now()) + timedelta(minutes=delay_minutes)
 
             # Human Mode Sleep Cycle check
             try:
@@ -110,7 +121,7 @@ async def start_scheduler():
                     sleep_start = await settings_svc.get_setting("human_mode_sleep_start", "23:00")
                     sleep_end = await settings_svc.get_setting("human_mode_sleep_end", "06:00")
                     
-                    now = datetime.now()
+                    now = await get_target_now()
                     start_parts = sleep_start.split(":")
                     end_parts = sleep_end.split(":")
                     
@@ -162,7 +173,7 @@ async def start_scheduler():
             logger.info(f"Next wave scheduled at {state.next_run_time.strftime('%Y-%m-%d %H:%M:%S')} (in {delay_minutes} minutes)")
 
             # Sleep responsively
-            while datetime.now() < state.next_run_time:
+            while (await get_target_now()) < state.next_run_time:
                 if state.is_paused:
                     logger.info("Scheduler paused during delay sleep cycle. Resetting schedule.")
                     state.next_run_time = None
@@ -170,7 +181,7 @@ async def start_scheduler():
                 await asyncio.sleep(5)
 
             # Check again before running to prevent running while paused
-            if not state.is_paused and state.next_run_time and datetime.now() >= state.next_run_time:
+            if not state.is_paused and state.next_run_time and (await get_target_now()) >= state.next_run_time:
                 logger.info("Scheduled time reached. Triggering scheduled wave...")
                 await wave_svc.run_wave("Auto Scheduler")
 
@@ -203,7 +214,8 @@ async def start_auto_backup_scheduler():
             else:
                 try:
                     last_backup_dt = datetime.fromisoformat(last_backup_str)
-                    if datetime.now() - last_backup_dt >= timedelta(days=2):
+                    target_now = await get_target_now()
+                    if target_now - last_backup_dt >= timedelta(days=2):
                         run_backup = True
                 except Exception:
                     run_backup = True
@@ -215,13 +227,14 @@ async def start_auto_backup_scheduler():
                 backup_paths = await backup_svc.create_backup()
                 
                 report_target_raw = await settings_svc.get_setting("report_target", config.REPORT_TARGET)
+                target_now = await get_target_now()
                 if report_target_raw:
                     from utils import resolve_target_entity
                     resolved_target = await resolve_target_entity(client, report_target_raw)
                     for path in backup_paths:
                         caption_msg = (
                             f"🔒 **Auto-Backup (2 Harian)**\n"
-                            f"• **Waktu**: `{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`\n"
+                            f"• **Waktu**: `{target_now.strftime('%Y-%m-%d %H:%M:%S')}`\n"
                             f"• **Berkas**: `{os.path.basename(path)}`"
                         )
                         await client.send_file(resolved_target, path, caption=caption_msg)
@@ -232,7 +245,7 @@ async def start_auto_backup_scheduler():
                     for path in backup_paths:
                         backup_svc.clean_backup_file(path)
                     
-                await settings_svc.set_setting("last_auto_backup_time", datetime.now().isoformat())
+                await settings_svc.set_setting("last_auto_backup_time", target_now.isoformat())
                 
         except asyncio.CancelledError:
             logger.info("Auto-backup scheduler cancelled.")

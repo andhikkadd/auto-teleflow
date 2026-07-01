@@ -354,21 +354,47 @@
 
     // Persist active tab across reloads using localStorage
     document.addEventListener("DOMContentLoaded", function() {
-        const activeTabId = localStorage.getItem("activeTemplateTab");
-        if (activeTabId) {
-            const tabEl = document.querySelector(`#${activeTabId}`);
-            if (tabEl) {
-                const tab = new bootstrap.Tab(tabEl);
-                tab.show();
-            }
+        // Reset all checkboxes on page load to ensure clean state and sync UI
+        try {
+            const regularCheckboxes = document.querySelectorAll('.regular-checkbox');
+            regularCheckboxes.forEach(chk => chk.checked = false);
+            const overrideCheckboxes = document.querySelectorAll('.override-checkbox');
+            overrideCheckboxes.forEach(chk => chk.checked = false);
+            
+            const selectAllRegular = document.getElementById('selectAllRegular');
+            if (selectAllRegular) selectAllRegular.checked = false;
+            const selectAllOverride = document.getElementById('selectAllOverride');
+            if (selectAllOverride) selectAllOverride.checked = false;
+
+            updateSelectedCount('regular');
+            updateSelectedCount('override');
+        } catch (e) {
+            console.error("Failed to reset checkboxes on load:", e);
         }
 
-        const tabLinks = document.querySelectorAll('button[data-bs-toggle="tab"]');
-        tabLinks.forEach(link => {
-            link.addEventListener("shown.bs.tab", function(e) {
-                localStorage.setItem("activeTemplateTab", e.target.id);
+        try {
+            const activeTabId = localStorage.getItem("activeTemplateTab");
+            if (activeTabId) {
+                const tabEl = document.querySelector(`#${activeTabId}`);
+                if (tabEl && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+                    const tab = new bootstrap.Tab(tabEl);
+                    tab.show();
+                }
+            }
+        } catch (e) {
+            console.warn("Failed to restore active tab:", e);
+        }
+
+        try {
+            const tabLinks = document.querySelectorAll('button[data-bs-toggle="tab"]');
+            tabLinks.forEach(link => {
+                link.addEventListener("shown.bs.tab", function(e) {
+                    localStorage.setItem("activeTemplateTab", e.target.id);
+                });
             });
-        });
+        } catch (e) {
+            console.warn("Failed to bind tab listeners:", e);
+        }
 
         // Timezone conversion for override until
         const overrideUntilRaw = "{{ override_until }}";

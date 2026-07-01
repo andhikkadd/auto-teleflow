@@ -695,7 +695,8 @@ async def post_save_settings(
     auto_responder_keywords: str = Form(""),
     human_mode_enabled: Optional[str] = Form(None),
     human_mode_sleep_start: str = Form("23:00"),
-    human_mode_sleep_end: str = Form("06:00")
+    human_mode_sleep_end: str = Form("06:00"),
+    timezone_offset: str = Form("7")
 ):
     try:
         # Input Validation Checks
@@ -747,6 +748,7 @@ async def post_save_settings(
         await settings_svc.set_setting("human_mode_enabled", "1" if human_mode_enabled is not None else "0")
         await settings_svc.set_setting("human_mode_sleep_start", human_mode_sleep_start.strip())
         await settings_svc.set_setting("human_mode_sleep_end", human_mode_sleep_end.strip())
+        await settings_svc.set_setting("timezone_offset", timezone_offset.strip())
         
         # Apply parameters to running state immediately
         state.min_delay = min_delay
@@ -1159,3 +1161,4 @@ async def post_delete_session(request: Request, session_name: str = Form(...)):
         request.session["flash_danger"] = f"Failed to delete session: {e}"
         
     return RedirectResponse(url="/sessions", status_code=303)
+
