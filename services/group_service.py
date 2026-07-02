@@ -315,14 +315,15 @@ class GroupService:
         )
 
     @staticmethod
-    async def verify_message_delivery(group_username_or_id: str, sent_msg_id: int, client=None) -> bool:
+    async def verify_message_delivery(group_username_or_id, sent_msg_id: int, client=None) -> bool:
         """Fetch the last 5 messages from the group to check if our sent message is visible."""
         if client is None:
             client = telegram_client.get_client()
         try:
             target = group_username_or_id
-            if target.replace("-", "").isdigit():
-                target = int(target)
+            if isinstance(target, str):
+                if target.replace("-", "").isdigit():
+                    target = int(target)
                 
             messages = await client.get_messages(target, limit=5)
             for m in messages:

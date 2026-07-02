@@ -127,12 +127,19 @@ class WaveService:
                         random.shuffle(template_pool)
                     return template_pool.pop()
                 
+                should_delay = False
                 for idx, grp in enumerate(client_groups):
-                    # Apply delay before sending (except first group)
+                    # Apply delay before sending
                     if idx > 0:
-                        current_delay = random.randint(min(min_delay_sec, max_delay_sec), max(min_delay_sec, max_delay_sec))
-                        logger.info(f"Worker #{worker_id} ({client_name}) sleeping for {current_delay}s before next group...")
-                        await asyncio.sleep(current_delay)
+                        if should_delay:
+                            current_delay = random.randint(min(min_delay_sec, max_delay_sec), max(min_delay_sec, max_delay_sec))
+                            logger.info(f"Worker #{worker_id} ({client_name}) sleeping for {current_delay}s before next group...")
+                            await asyncio.sleep(current_delay)
+                            should_delay = False
+                        else:
+                            # Small safety delay for skipped/failed groups to prevent API flooding
+                            small_delay = random.uniform(1.0, 2.5)
+                            await asyncio.sleep(small_delay)
                         
                     peer_id = grp.get("peer_id")
                     target = peer_id if peer_id else grp["username"]
@@ -274,6 +281,9 @@ class WaveService:
                                         except Exception as del_err:
                                             logger.warning(f"Failed to delete previous message {our_msg.id}: {del_err}")
                             except Exception as audit_err:
+                                from telethon.errors import ChannelPrivateError, UserBannedInChannelError, ChatWriteForbiddenError
+                                if isinstance(audit_err, (ChannelPrivateError, UserBannedInChannelError, ChatWriteForbiddenError, ValueError)):
+                                    raise
                                 logger.error(f"Error executing ghost auditing on {grp_title}: {audit_err}")
 
                         # 0.5. Typing Status Emulation check
@@ -293,6 +303,9 @@ class WaveService:
                                 async with client.action(entity, 'typing'):
                                     await asyncio.sleep(typing_delay)
                         except Exception as typing_err:
+                            from telethon.errors import ChannelPrivateError, UserBannedInChannelError, ChatWriteForbiddenError
+                            if isinstance(typing_err, (ChannelPrivateError, UserBannedInChannelError, ChatWriteForbiddenError, ValueError)):
+                                raise
                             logger.warning(f"Failed to simulate typing action in {grp_title}: {typing_err}")
 
                         logger.info(f"Worker #{worker_id} ({client_name}) sending message to {grp_title} ({resolved_username})...")
@@ -325,6 +338,7 @@ class WaveService:
                         
                         success_count += 1
                         logger.info(f"Worker #{worker_id} ({client_name}): Message successfully sent to {grp_title} [Status: {item_status}]")
+                        should_delay = True
                         
                     except Exception as e:
                         # Update DB health properties based on exception mapping
