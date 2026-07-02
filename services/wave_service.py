@@ -34,7 +34,7 @@ class WaveService:
                 return
             
             # 3. Get active target groups that are not in cooldown
-            now_iso = datetime.now().isoformat()
+            now_iso = state.get_target_now().isoformat()
             groups = await db.fetchall(
                 """
                 SELECT * FROM groups 
@@ -47,11 +47,11 @@ class WaveService:
             
             if not groups:
                 logger.info("No active, non-cooldown target groups available for this wave.")
-                state.last_run_time = datetime.now()
+                state.last_run_time = state.get_target_now()
                 return
                 
             # 4. Insert wave log row
-            now_str = datetime.now().isoformat()
+            now_str = state.get_target_now().isoformat()
             wave_log_id = await db.execute(
                 """
                 INSERT INTO wave_logs (started_at, finished_at, status, success_count, fail_count)
@@ -85,7 +85,7 @@ class WaveService:
                 logger.error("No active/authorized Telegram accounts found. Wave aborted.")
                 await db.execute(
                     "UPDATE wave_logs SET finished_at = ?, status = 'failed', success_count = 0, fail_count = 0 WHERE id = ?",
-                    (datetime.now().isoformat(), wave_log_id)
+                    (state.get_target_now().isoformat(), wave_log_id)
                 )
                 return
             
@@ -223,7 +223,7 @@ class WaveService:
                                         )
                                         await db.execute(
                                             "UPDATE groups SET last_send_status = 'skipped', updated_at = ? WHERE id = ?",
-                                            (datetime.now().isoformat(), grp_id)
+                                            (state.get_target_now().isoformat(), grp_id)
                                         )
                                         continue
                                     elif audit_action == "delete_and_repost":
@@ -270,7 +270,7 @@ class WaveService:
                                 fail_streak = 0, last_error = NULL, updated_at = ?
                             WHERE id = ?
                             """,
-                            (grp_status, item_status, datetime.now().isoformat(), datetime.now().isoformat(), grp_id)
+                            (grp_status, item_status, state.get_target_now().isoformat(), state.get_target_now().isoformat(), grp_id)
                         )
                         
                         # Insert wave log details
@@ -311,7 +311,7 @@ class WaveService:
                 await asyncio.gather(*worker_tasks)
                 
             # 6. Complete Wave Log
-            finished_str = datetime.now().isoformat()
+            finished_str = state.get_target_now().isoformat()
             await db.execute(
                 """
                 UPDATE wave_logs 
@@ -322,7 +322,7 @@ class WaveService:
             )
             
             logger.info(f"Wave execution finished: {success_count} success, {fail_count} failed.")
-            state.last_run_time = datetime.now()
+            state.last_run_time = state.get_target_now()
             
             # 7. Dispatch Report if requested
             send_report_val = await settings_svc.get_setting("send_report", "1")

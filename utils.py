@@ -16,11 +16,16 @@ class GlobalState:
         self.last_run_time: Optional[datetime] = None
         self.min_delay: int = 60
         self.max_delay: int = 180
+        self.timezone_offset: float = 7.0
+
+    def get_target_now(self) -> datetime:
+        from datetime import timezone, timedelta
+        return (datetime.now(timezone.utc) + timedelta(hours=self.timezone_offset)).replace(tzinfo=None)
 
     def get_next_run_in_seconds(self) -> float:
         if not self.next_run_time:
             return 0.0
-        now = datetime.now()
+        now = self.get_target_now()
         diff = (self.next_run_time - now).total_seconds()
         return max(0.0, diff)
 
@@ -29,7 +34,7 @@ class GlobalState:
             return "Paused"
         if not self.next_run_time:
             return "Not scheduled"
-        now = datetime.now()
+        now = self.get_target_now()
         if now >= self.next_run_time:
             return "Imminent"
         diff = self.next_run_time - now

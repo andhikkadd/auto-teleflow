@@ -186,7 +186,7 @@ async def register_handlers(clients: list = None):
             return
 
         # DB logging of command
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         status_str = "allowed" if authorized else "denied"
         await db.execute(
             "INSERT INTO command_logs (sender_id, sender_username, text, status, created_at) VALUES (?, ?, ?, ?, ?)",

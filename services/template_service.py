@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from database import db
+from utils import state
 
 logger = logging.getLogger("TemplateService")
 
@@ -27,10 +28,10 @@ class TemplateService:
                             until_dt = datetime.fromisoformat(iso_str)
                             if until_dt.tzinfo is None:
                                 until_dt = until_dt.replace(tzinfo=timezone.utc)
-                            is_active = datetime.now(timezone.utc) < until_dt
+                            is_active = state.get_target_now().replace(tzinfo=timezone.utc) < until_dt
                         else:
                             until_dt = datetime.fromisoformat(override_until_str)
-                            is_active = datetime.now() < until_dt
+                            is_active = state.get_target_now() < until_dt
 
                         if is_active:
                             # Return override templates strictly (can be empty if none created)
@@ -55,7 +56,7 @@ class TemplateService:
         if len(stripped) > 4096:
             raise ValueError("Template content exceeds Telegram's 4096 character limit.")
             
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         template_id = await db.execute(
             "INSERT INTO templates (text, is_override, is_active, created_at, updated_at) "
             "VALUES (?, ?, 1, ?, ?)",

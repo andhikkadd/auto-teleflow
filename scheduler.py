@@ -18,6 +18,7 @@ async def get_target_now() -> datetime:
         tz_offset = float(tz_offset_str)
     except ValueError:
         tz_offset = 7.0
+    state.timezone_offset = tz_offset
     from datetime import timezone, timedelta
     return (datetime.now(timezone.utc) + timedelta(hours=tz_offset)).replace(tzinfo=None)
 
@@ -86,6 +87,12 @@ async def start_scheduler():
         
         run_start_val = await settings_svc.get_setting("run_wave_on_start", "0")
         run_on_start = (run_start_val == "1")
+        
+        tz_offset_str = await settings_svc.get_setting("timezone_offset", "7")
+        try:
+            state.timezone_offset = float(tz_offset_str)
+        except ValueError:
+            state.timezone_offset = 7.0
         
     except Exception as e:
         logger.error(f"Failed to load scheduler settings from database: {e}. Using defaults.")
@@ -167,6 +174,15 @@ async def start_scheduler():
                                             await send_daily_summary_report(active_clients[0])
                             except Exception as daily_err:
                                 logger.error(f"Error triggering daily sleep report: {daily_err}")
+                        else:
+                            # Capping scheduled next_run_time to sleep start if it crosses into it
+                            upcoming_sleep_start = start_time
+                            if upcoming_sleep_start < now:
+                                upcoming_sleep_start += timedelta(days=1)
+                            
+                            if state.next_run_time > upcoming_sleep_start:
+                                state.next_run_time = upcoming_sleep_start
+                                logger.info(f"Human Mode Enabled: Next scheduled wave capped to sleep start time {state.next_run_time.strftime('%Y-%m-%d %H:%M:%S')}")
             except Exception as human_err:
                 logger.error(f"Error checking Human Mode in scheduler: {human_err}")
 

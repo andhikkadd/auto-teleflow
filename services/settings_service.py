@@ -13,7 +13,7 @@ class SettingsService:
 
     @staticmethod
     async def set_setting(key: str, value: str):
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         # Use INSERT OR REPLACE since settings has 'key' as PRIMARY KEY
         await db.execute(
             "INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",

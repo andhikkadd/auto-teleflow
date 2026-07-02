@@ -148,7 +148,7 @@ class GroupService:
             if existing_resolved:
                 return {"status": "exists", "group": existing_resolved}
                 
-            now_str = datetime.now().isoformat()
+            now_str = state.get_target_now().isoformat()
             
             group_db_id = await db.execute(
                 """
@@ -171,7 +171,7 @@ class GroupService:
 
     @staticmethod
     async def set_skip(group_id: int, skip: bool):
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         status_val = "SKIPPED" if skip else "ACTIVE"
         is_skipped_val = 1 if skip else 0
         await db.execute(
@@ -181,7 +181,7 @@ class GroupService:
 
     @staticmethod
     async def reset_group(group_id: int):
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         await db.execute(
             """
             UPDATE groups 
@@ -195,7 +195,7 @@ class GroupService:
     @staticmethod
     async def autoclean() -> int:
         """Skip (is_skipped = 1) any group with fail_streak >= 3 or specific broken statuses."""
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         # Query count before cleaning
         rows = await db.fetchall(
             """
@@ -220,7 +220,7 @@ class GroupService:
     @staticmethod
     async def handle_delivery_error(group_id: int, exception: Exception):
         """Map Telethon/RPC exceptions to database status and logs."""
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         err_msg = str(exception)
         logger.warning(f"Handling delivery error for group ID {group_id}: {type(exception).__name__}: {err_msg}")
         
@@ -230,13 +230,13 @@ class GroupService:
         
         if isinstance(exception, FloodWaitError):
             status = "FLOOD_WAIT"
-            cooldown_time = datetime.now() + timedelta(seconds=exception.seconds)
+            cooldown_time = state.get_target_now() + timedelta(seconds=exception.seconds)
             cooldown_until = cooldown_time.isoformat()
             auto_skip_reason = f"FloodWait for {exception.seconds}s"
             
         elif isinstance(exception, SlowModeWaitError):
             status = "FLOOD_WAIT"
-            cooldown_time = datetime.now() + timedelta(seconds=exception.seconds)
+            cooldown_time = state.get_target_now() + timedelta(seconds=exception.seconds)
             cooldown_until = cooldown_time.isoformat()
             auto_skip_reason = f"SlowMode wait for {exception.seconds}s"
             
@@ -326,7 +326,7 @@ class GroupService:
         if target.replace("-", "").isdigit():
             target = int(target)
             
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         try:
             entity = await client.get_entity(target)
             title = getattr(entity, "title", "No Title")
@@ -386,7 +386,7 @@ class GroupService:
             import random
             message_text = random.choice(templates)["text"]
             
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         try:
             sent_msg = await client.send_message(target, message_text)
             

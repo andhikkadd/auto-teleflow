@@ -532,7 +532,7 @@ async def get_templates(request: Request):
         "override_active": override_active,
         "override_until": override_until,
         "is_currently_overridden": is_currently_overridden,
-        "current_time": datetime.now().isoformat(),
+        "current_time": state.get_target_now().isoformat(),
         "active_tab": active_tab,
         **get_flash_context(request)
     }
@@ -680,7 +680,7 @@ async def post_toggle_template_active(request: Request, id: int):
                 request.session["flash_danger"] = "Abort: Setidaknya harus ada 1 template regular aktif yang tersisa di sistem."
                 return RedirectResponse(url=f"/templates?tab={redirect_tab}", status_code=303)
 
-        await db.execute("UPDATE templates SET is_active = ?, updated_at = ? WHERE id = ?", (new_active, datetime.now().isoformat(), id))
+        await db.execute("UPDATE templates SET is_active = ?, updated_at = ? WHERE id = ?", (new_active, state.get_target_now().isoformat(), id))
         status_name = "aktif" if new_active == 1 else "nonaktif"
         request.session["flash_success"] = f"Template ID {id} berhasil di{status_name}kan."
     except Exception as e:
@@ -703,7 +703,7 @@ async def post_templates_bulk_action(
 
         if action == "activate":
             for temp_id in id_list:
-                await db.execute("UPDATE templates SET is_active = 1, updated_at = ? WHERE id = ?", (datetime.now().isoformat(), temp_id))
+                await db.execute("UPDATE templates SET is_active = 1, updated_at = ? WHERE id = ?", (state.get_target_now().isoformat(), temp_id))
             request.session["flash_success"] = f"Berhasil mengaktifkan {len(id_list)} template yang dipilih."
         elif action == "deactivate":
             # Safety check: if tab is regular, we must keep at least one active template in the database
@@ -716,7 +716,7 @@ async def post_templates_bulk_action(
                     return RedirectResponse(url=f"/templates?tab={tab}", status_code=303)
 
             for temp_id in id_list:
-                await db.execute("UPDATE templates SET is_active = 0, updated_at = ? WHERE id = ?", (datetime.now().isoformat(), temp_id))
+                await db.execute("UPDATE templates SET is_active = 0, updated_at = ? WHERE id = ?", (state.get_target_now().isoformat(), temp_id))
             request.session["flash_success"] = f"Berhasil menonaktifkan {len(id_list)} template yang dipilih."
         elif action == "delete":
             # Safety check: if tab is regular, we must keep at least one active template in the database
@@ -839,6 +839,10 @@ async def post_save_settings(
         # Apply parameters to running state immediately
         state.min_delay = min_delay
         state.max_delay = max_delay
+        try:
+            state.timezone_offset = float(timezone_offset)
+        except ValueError:
+            pass
         
         request.session["flash_success"] = "System configurations updated successfully."
     except Exception as e:
@@ -947,7 +951,7 @@ async def post_run_backup(request: Request):
         for path in backup_paths:
             basename = os.path.basename(path)
             is_gpg = path.endswith(".gpg")
-            caption_msg = f"🔒 **Backup: {basename}**\n• **Dibuat**: `{datetime.now().isoformat()}`\n• **Format**: {'🔒 Encrypted GPG' if is_gpg else '⚠️ ZIP Fallback'}"
+            caption_msg = f"🔒 **Backup: {basename}**\n• **Dibuat**: `{state.get_target_now().isoformat()}`\n• **Format**: {'🔒 Encrypted GPG' if is_gpg else '⚠️ ZIP Fallback'}"
             await client.send_file(resolved_target, path, caption=caption_msg)
             
             # Clean backup file from local disk to save space
@@ -1167,7 +1171,7 @@ async def post_set_proxy(
             if parsed.scheme.lower() not in ('socks5', 'socks4', 'http', 'https') or not parsed.hostname:
                 raise ValueError("Invalid proxy format. Must be like: socks5://user:pass@host:port or http://host:port")
                 
-            now_str = datetime.now().isoformat()
+            now_str = state.get_target_now().isoformat()
             await db.execute(
                 "INSERT OR REPLACE INTO session_proxies (session_name, proxy_url, updated_at) VALUES (?, ?, ?)",
                 (session_name, proxy_url, now_str)
@@ -1200,7 +1204,7 @@ async def post_toggle_active(
         return RedirectResponse(url="/login", status_code=303)
         
     try:
-        now_str = datetime.now().isoformat()
+        now_str = state.get_target_now().isoformat()
         # Find if row exists to keep proxy_url
         row = await db.fetchone("SELECT proxy_url FROM session_proxies WHERE session_name = ?", (session_name,))
         proxy_url = row["proxy_url"] if row else ""
