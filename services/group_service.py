@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import asyncio
 
 from database import db
-from utils import state
+from utils import state, resolve_target_entity
 import telegram_client
 
 # Telethon Errors
@@ -60,18 +60,26 @@ class GroupService:
         """Find group by ID (as int) or username (as string)."""
         is_id = False
         db_id = None
-        if ref.isdigit():
+        ref_check = ref
+        if ref_check.startswith("-"):
+            ref_check = ref_check[1:]
+        if ref_check.isdigit():
             is_id = True
             db_id = int(ref)
             
         if is_id:
             group = await db.fetchone("SELECT * FROM groups WHERE id = ?", (db_id,))
             if not group:
+                group = await db.fetchone("SELECT * FROM groups WHERE peer_id = ?", (db_id,))
+            if not group:
                 group = await db.fetchone("SELECT * FROM groups WHERE username = ?", (str(db_id),))
             return group
         else:
             clean_target = clean_username_input(ref)
-            return await db.fetchone("SELECT * FROM groups WHERE username = ?", (clean_target,))
+            group = await db.fetchone("SELECT * FROM groups WHERE username = ?", (clean_target,))
+            if not group:
+                group = await db.fetchone("SELECT * FROM groups WHERE raw_input = ?", (ref,))
+            return group
 
     @staticmethod
     async def add_group(raw_input: str, client=None) -> dict:
@@ -143,6 +151,18 @@ class GroupService:
             else:
                 db_username = str(get_peer_id(entity))
                 
+            # Check by peer_id to prevent duplicates
+            from telethon.utils import get_peer_id
+            try:
+                peer_id = get_peer_id(entity)
+            except Exception:
+                peer_id = getattr(entity, 'id', None)
+
+            if peer_id is not None:
+                existing_peer = await db.fetchone("SELECT * FROM groups WHERE peer_id = ?", (peer_id,))
+                if existing_peer:
+                    return {"status": "exists", "group": existing_peer}
+            
             # Double check with resolved username/ID to avoid duplicates
             existing_resolved = await db.fetchone("SELECT * FROM groups WHERE username = ?", (db_username,))
             if existing_resolved:
@@ -152,10 +172,10 @@ class GroupService:
             
             group_db_id = await db.execute(
                 """
-                INSERT INTO groups (username, title, raw_input, is_skipped, status, fail_streak, created_at, updated_at)
-                VALUES (?, ?, ?, 0, 'ACTIVE', 0, ?, ?)
+                INSERT INTO groups (peer_id, username, title, raw_input, is_skipped, status, fail_streak, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 0, 'ACTIVE', 0, ?, ?)
                 """,
-                (db_username, title, raw_input, now_str, now_str)
+                (peer_id, db_username, title, raw_input, now_str, now_str)
             )
             
             new_group = await db.fetchone("SELECT * FROM groups WHERE id = ?", (group_db_id,))
@@ -322,8 +342,12 @@ class GroupService:
             
         if client is None:
             client = telegram_client.get_client()
-        target = group["username"]
-        if target.replace("-", "").isdigit():
+        peer_id = group.get("peer_id")
+        target = peer_id if peer_id else group["username"]
+        if not target:
+            target = group["raw_input"]
+            
+        if isinstance(target, str) and target.replace("-", "").isdigit():
             target = int(target)
             
         now_str = state.get_target_now().isoformat()
@@ -331,15 +355,27 @@ class GroupService:
             entity = await client.get_entity(target)
             title = getattr(entity, "title", "No Title")
             
-            # Resolve default active state back
+            from telethon.utils import get_peer_id
+            try:
+                resolved_peer_id = get_peer_id(entity)
+            except Exception:
+                resolved_peer_id = getattr(entity, 'id', None)
+                
+            resolved_username = None
+            if getattr(entity, 'username', None):
+                resolved_username = "@" + entity.username.lower()
+            else:
+                resolved_username = str(resolved_peer_id)
+            
+            # Resolve default active state back and self-heal fields
             await db.execute(
                 """
                 UPDATE groups 
-                SET title = ?, status = 'ACTIVE', fail_streak = 0, last_error = NULL, 
+                SET peer_id = ?, username = ?, title = ?, status = 'ACTIVE', fail_streak = 0, last_error = NULL, 
                     auto_skip_reason = NULL, last_checked_at = ?, updated_at = ? 
                 WHERE id = ?
                 """,
-                (title, now_str, now_str, group_id)
+                (resolved_peer_id, resolved_username, title, now_str, now_str, group_id)
             )
             return {"status": "success", "title": title}
         except Exception as e:
@@ -372,8 +408,12 @@ class GroupService:
             
         if client is None:
             client = telegram_client.get_client()
-        target = group["username"]
-        if target.replace("-", "").isdigit():
+        peer_id = group.get("peer_id")
+        target = peer_id if peer_id else group["username"]
+        if not target:
+            target = group["raw_input"]
+            
+        if isinstance(target, str) and target.replace("-", "").isdigit():
             target = int(target)
             
         # Get content
@@ -388,10 +428,26 @@ class GroupService:
             
         now_str = state.get_target_now().isoformat()
         try:
-            sent_msg = await client.send_message(target, message_text)
+            entity = None
+            try:
+                entity = await client.get_entity(target)
+            except Exception:
+                try:
+                    entity = await resolve_target_entity(client, target)
+                except Exception:
+                    raw_target = group.get("raw_input")
+                    if raw_target and raw_target != target:
+                        entity = await resolve_target_entity(client, raw_target)
+                    else:
+                        raise
+            
+            if not entity:
+                raise ValueError("Could not resolve target entity")
+                
+            sent_msg = await client.send_message(entity, message_text)
             
             # Post-delivery check: verify message is visible
-            is_verified = await GroupService.verify_message_delivery(group["username"], sent_msg.id)
+            is_verified = await GroupService.verify_message_delivery(entity, sent_msg.id)
             send_status = "success" if is_verified else "unverified"
             
             await db.execute(

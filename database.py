@@ -80,6 +80,7 @@ class Database:
         await self.execute("""
             CREATE TABLE IF NOT EXISTS groups (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                peer_id INTEGER,
                 username TEXT,
                 title TEXT,
                 raw_input TEXT,
@@ -167,6 +168,7 @@ class Database:
 
         # Dynamic migrations check: check if the columns are in groups table
         columns_to_add = {
+            "peer_id": "INTEGER",
             "status": "TEXT DEFAULT 'ACTIVE'",
             "last_send_status": "TEXT",
             "last_error": "TEXT",

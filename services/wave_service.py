@@ -134,11 +134,15 @@ class WaveService:
                         logger.info(f"Worker #{worker_id} ({client_name}) sleeping for {current_delay}s before next group...")
                         await asyncio.sleep(current_delay)
                         
-                    target = grp["username"]
-                    if target.replace("-", "").isdigit():
+                    peer_id = grp.get("peer_id")
+                    target = peer_id if peer_id else grp["username"]
+                    if not target:
+                        target = grp["raw_input"]
+                        
+                    if isinstance(target, str) and target.replace("-", "").isdigit():
                         target = int(target)
                         
-                    # Pre-checking: check if target username has already been processed in this wave
+                    # Pre-checking: check if target username/id has already been processed in this wave
                     target_norm = str(target).strip().lower()
                     if target_norm in processed_targets:
                         logger.info(f"Worker #{worker_id} ({client_name}): Target {target_norm} already processed in this wave. Skipping.")
@@ -159,43 +163,80 @@ class WaveService:
                         try:
                             entity = await client.get_entity(target)
                         except Exception:
+                            # Fallback 1: Try resolving via resolve_target_entity with the primary target
                             try:
                                 entity = await resolve_target_entity(client, target)
-                            except Exception as ent_err:
-                                logger.warning(f"Could not resolve entity for {grp_title} ({target}): {ent_err}")
-                        
-                        # Peer ID check: check if the unique Telegram Peer ID has already been processed in this wave
-                        if entity:
-                            from telethon.utils import get_peer_id
-                            try:
-                                entity_peer_id = get_peer_id(entity)
                             except Exception:
-                                entity_peer_id = getattr(entity, 'id', None)
-                                
-                            if entity_peer_id is not None:
-                                entity_peer_key = f"id:{entity_peer_id}"
-                                if entity_peer_key in processed_targets:
-                                    logger.info(f"Worker #{worker_id} ({client_name}): Target group {grp_title} (ID: {entity_peer_id}) already processed in this wave. Skipping.")
-                                    await db.execute(
-                                        """
-                                        INSERT INTO wave_log_items (wave_log_id, group_id, group_title, status, error_message, message_id)
-                                        VALUES (?, ?, ?, 'skipped', 'Deduplication: Already processed by another worker', NULL)
-                                        """,
-                                        (wave_log_id, grp_id, grp_title)
-                                    )
-                                    continue
-                                processed_targets.add(entity_peer_key)
-                                
-                            if isinstance(entity, Channel) and getattr(entity, 'left', True):
-                                logger.info(f"Account {client_name} is not in group {grp_title}. Attempting to join...")
-                                try:
-                                    await client(JoinChannelRequest(entity))
-                                    # Human-like delay after joining to avoid Telegram anti-spam triggers
-                                    join_delay = random.randint(5, 10)
-                                    logger.info(f"Account {client_name} joined {grp_title}. Sleeping for {join_delay}s...")
-                                    await asyncio.sleep(join_delay)
-                                except Exception as join_err:
-                                    logger.error(f"Account {client_name} failed to join {grp_title}: {join_err}")
+                                # Fallback 2: Try resolving using original raw invite link / username
+                                raw_target = grp.get("raw_input")
+                                if raw_target and raw_target != target:
+                                    try:
+                                        logger.info(f"Resolving {grp_title} via fallback raw_input: {raw_target}")
+                                        entity = await resolve_target_entity(client, raw_target)
+                                    except Exception as raw_err:
+                                        logger.warning(f"Could not resolve entity for {grp_title} via raw_input ({raw_target}): {raw_err}")
+                                        raise ValueError(f"Could not resolve target: {raw_err}")
+                                else:
+                                    raise ValueError("Could not find input peer or resolve target entity")
+                        
+                        if not entity:
+                            raise ValueError("Entity could not be resolved from target or raw_input")
+                        
+                        from telethon.utils import get_peer_id
+                        try:
+                            resolved_peer_id = get_peer_id(entity)
+                        except Exception:
+                            resolved_peer_id = getattr(entity, 'id', None)
+                            
+                        resolved_username = None
+                        if getattr(entity, 'username', None):
+                            resolved_username = "@" + entity.username.lower()
+                        else:
+                            resolved_username = str(resolved_peer_id)
+                            
+                        resolved_title = getattr(entity, 'title', grp_title)
+                        
+                        # Self-heal fields in database if changed
+                        if (resolved_peer_id != grp.get("peer_id") or 
+                            resolved_username != grp.get("username") or 
+                            resolved_title != grp.get("title")):
+                            
+                            await db.execute(
+                                """
+                                UPDATE groups 
+                                SET peer_id = ?, username = ?, title = ?, updated_at = ? 
+                                WHERE id = ?
+                                """,
+                                (resolved_peer_id, resolved_username, resolved_title, state.get_target_now().isoformat(), grp_id)
+                            )
+                            logger.info(f"Group info self-healed in DB for '{grp_title}': username={resolved_username}, title='{resolved_title}'")
+                            grp_title = resolved_title
+
+                        # Peer ID check: check if the unique Telegram Peer ID has already been processed in this wave
+                        if resolved_peer_id is not None:
+                            entity_peer_key = f"id:{resolved_peer_id}"
+                            if entity_peer_key in processed_targets:
+                                logger.info(f"Worker #{worker_id} ({client_name}): Target group {grp_title} (ID: {resolved_peer_id}) already processed in this wave. Skipping.")
+                                await db.execute(
+                                    """
+                                    INSERT INTO wave_log_items (wave_log_id, group_id, group_title, status, error_message, message_id)
+                                    VALUES (?, ?, ?, 'skipped', 'Deduplication: Already processed by another worker', NULL)
+                                    """,
+                                    (wave_log_id, grp_id, grp_title)
+                                )
+                                continue
+                            processed_targets.add(entity_peer_key)
+                            
+                        if isinstance(entity, Channel) and getattr(entity, 'left', True):
+                            logger.info(f"Account {client_name} is not in group {grp_title}. Attempting to join...")
+                            try:
+                                await client(JoinChannelRequest(entity))
+                                # Human-like delay after joining to avoid Telegram anti-spam triggers
+                                join_delay = random.randint(5, 10)
+                                logger.info(f"Account {client_name} joined {grp_title}. Sleeping for {join_delay}s...")
+                                await asyncio.sleep(join_delay)
+                            except Exception as join_err:
+                                logger.error(f"Account {client_name} failed to join {grp_title}: {join_err}")
 
                         # Ghost Auditing / Smart Deduplication check
                         ghost_auditing_enabled = await settings_svc.get_setting("ghost_auditing_enabled", "0")
@@ -204,7 +245,7 @@ class WaveService:
                                 audit_limit = int(await settings_svc.get_setting("ghost_auditing_limit", "10"))
                                 audit_action = await settings_svc.get_setting("ghost_auditing_action", "skip")
                                 
-                                recent_messages = await client.get_messages(target, limit=audit_limit)
+                                recent_messages = await client.get_messages(entity, limit=audit_limit)
                                 our_msg = None
                                 for msg in recent_messages:
                                     if msg.sender_id in my_user_ids:
@@ -229,7 +270,7 @@ class WaveService:
                                     elif audit_action == "delete_and_repost":
                                         logger.info(f"Ghost Auditing: Deleting previous promo message {our_msg.id} in {grp_title} before reposting.")
                                         try:
-                                            await client.delete_messages(target, [our_msg.id])
+                                            await client.delete_messages(entity, [our_msg.id])
                                         except Exception as del_err:
                                             logger.warning(f"Failed to delete previous message {our_msg.id}: {del_err}")
                             except Exception as audit_err:
@@ -249,16 +290,16 @@ class WaveService:
                                 
                                 typing_delay = random.randint(min(min_t, max_t), max(min_t, max_t))
                                 logger.info(f"Worker #{worker_id} ({client_name}): Simulating typing in {grp_title} for {typing_delay}s...")
-                                async with client.action(target, 'typing'):
+                                async with client.action(entity, 'typing'):
                                     await asyncio.sleep(typing_delay)
                         except Exception as typing_err:
                             logger.warning(f"Failed to simulate typing action in {grp_title}: {typing_err}")
 
-                        logger.info(f"Worker #{worker_id} ({client_name}) sending message to {grp_title} ({grp['username']})...")
-                        sent_msg = await client.send_message(target, selected_template)
+                        logger.info(f"Worker #{worker_id} ({client_name}) sending message to {grp_title} ({resolved_username})...")
+                        sent_msg = await client.send_message(entity, selected_template)
                         
                         # Verify message visibility post-delivery
-                        is_verified = await group_svc.verify_message_delivery(grp["username"], sent_msg.id, client=client)
+                        is_verified = await group_svc.verify_message_delivery(entity, sent_msg.id, client=client)
                         item_status = "success" if is_verified else "unverified"
                         grp_status = "ACTIVE" if is_verified else "UNVERIFIED"
                         
