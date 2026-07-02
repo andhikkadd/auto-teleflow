@@ -17,6 +17,16 @@ class GlobalState:
         self.min_delay: int = 60
         self.max_delay: int = 180
         self.timezone_offset: float = 7.0
+        self.processed_commands = []  # List of tuples (chat_id, message_id)
+
+    def is_command_processed(self, chat_id: int, msg_id: int) -> bool:
+        key = (chat_id, msg_id)
+        if key in self.processed_commands:
+            return True
+        self.processed_commands.append(key)
+        if len(self.processed_commands) > 500:
+            self.processed_commands.pop(0)
+        return False
 
     def get_target_now(self) -> datetime:
         from datetime import timezone, timedelta

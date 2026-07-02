@@ -205,29 +205,18 @@ async def register_handlers(clients: list = None):
         cmd = parts[0].lower()
         arg_str = parts[1].strip() if len(parts) > 1 else ""
 
-        # Determine if this client is the primary client (first sorted by session filename)
-        active_clients = sorted(
-            telegram_client.get_active_clients(),
-            key=lambda c: getattr(c.session, "filename", "")
-        )
-        is_primary = False
-        if active_clients:
-            try:
-                if event.client.session.filename == active_clients[0].session.filename:
-                    is_primary = True
-            except Exception:
-                pass
-
-        # Utility commands that should only be handled once by the Master Bot
+        # Utility commands that should only be handled once by any client
         single_response_cmds = (
             "!help", "!menu", "!server", "!backup", 
             "!addgroup", "!addgroups", "!groups", "!delgroup", 
             "!addtemplate", "!templates", "!deltemplate",
             "!setdelay", "!setgroupdelay", "!clean", "!autoclean",
-            "!wave"
+            "!wave", "!checkgroups", "!checkhealth", "/checkhealth",
+            "!health", "!failedgroups", "!resetgroup", "!checkgroup"
         )
-        if not is_primary and cmd in single_response_cmds:
-            return
+        if cmd in single_response_cmds:
+            if state.is_command_processed(event.chat_id, event.id):
+                return
 
         # Check for username targeting (e.g. !ping @bot_username)
         target_username = None
@@ -309,7 +298,7 @@ async def register_handlers(clients: list = None):
                 await handle_reload(event)
             
             # New Group Health Commands
-            elif cmd == "!checkgroups":
+            elif cmd in ("!checkgroups", "!checkhealth", "/checkhealth"):
                 await handle_checkgroups(event)
             elif cmd == "!checkgroup":
                 await handle_checkgroup(event, arg_str)
@@ -360,7 +349,7 @@ async def handle_help(event):
         "• `!delgroup <id|username>` - Hapus grup target.\n"
         "• `!skip <id|username>` - Jeda pengiriman ke grup ini.\n"
         "• `!unskip <id|username>` - Aktifkan kembali pengiriman ke grup ini.\n"
-        "• `!checkgroups` - Cek entitas & status semua grup (no promo).\n"
+        "• `!checkgroups` / `!checkhealth` - Cek entitas & status semua grup (no promo).\n"
         "• `!checkgroup <id|username>` - Cek status satu grup.\n"
         "• `!health` - Ringkasan kesehatan semua grup.\n"
         "• `!failedgroups` - Tampilkan grup bermasalah & error terakhir.\n"
