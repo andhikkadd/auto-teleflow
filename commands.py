@@ -216,12 +216,13 @@ async def register_handlers(clients: list = None):
 
         # Utility commands that should only be handled once by any client
         single_response_cmds = (
-            "!help", "!menu", "!server", "!backup", 
+            "!ping", "!status", "!server", "!pause", "!resume", 
             "!addgroup", "!addgroups", "!groups", "!delgroup", 
             "!addtemplate", "!templates", "!deltemplate",
             "!setdelay", "!setgroupdelay", "!clean", "!autoclean",
             "!wave", "!checkgroups", "!checkhealth", "/checkhealth",
-            "!health", "!failedgroups", "!resetgroup", "!checkgroup"
+            "!health", "!failedgroups", "!resetgroup", "!checkgroup",
+            "!restart", "!update"
         )
         if cmd in single_response_cmds:
             if state.is_command_processed(event.chat_id, event.id):
@@ -350,7 +351,9 @@ async def handle_help(event):
         "• `!server` - Performa server (CPU, RAM, Uptime).\n"
         "• `!pause` - Jeda scheduler wave otomatis.\n"
         "• `!resume` - Aktifkan kembali scheduler wave otomatis.\n"
-        "• `!reload` - Muat ulang konfigurasi dari .env & database.\n\n"
+        "• `!reload` - Muat ulang konfigurasi dari .env & database.\n"
+        "• `!restart` - Restart bot secara instan.\n"
+        "• `!update` - Unduh update terbaru dari Git lalu restart otomatis.\n\n"
         "**Manajemen Wave:**\n"
         "• `!wave` - Jalankan 1 wave promo manual sekarang.\n"
         "• `!setdelay <min> <max>` - Atur batas delay acak (menit).\n"
