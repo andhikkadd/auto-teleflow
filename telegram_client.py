@@ -93,9 +93,12 @@ def get_client(session_name: str = None) -> TelegramClient:
     """
     global _clients
     if session_name is None:
-        active = [c for c in _clients.values() if c.is_connected()]
+        active = [c for name, c in list(_clients.items()) if c.is_connected() and is_session_active(name)]
         if active:
             return active[0]
+        any_connected = [c for c in _clients.values() if c.is_connected()]
+        if any_connected:
+            return any_connected[0]
         # Fallback to default session
         session_name = Path(config.SESSION_NAME).stem
 
@@ -188,7 +191,12 @@ async def start_all_clients() -> list[TelegramClient]:
             logger.info(f"Client '{name}' successfully authorized as {me.first_name} (@{me.username or 'NoUsername'})")
             # Cache dialogs for entity resolution
             await client.get_dialogs()
-            active_clients.append(client)
+            
+            # Only return active/enabled clients for task runners and command routers
+            if is_session_active(name):
+                active_clients.append(client)
+            else:
+                logger.info(f"Client '{name}' is deactivated in database. Skipping from active list.")
         except Exception as e:
             logger.error(f"Failed to start client for session '{name}': {e}")
             

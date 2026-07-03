@@ -1215,6 +1215,21 @@ async def post_toggle_active(
         """, (session_name, proxy_url, is_active, now_str))
         
         status_text = "diaktifkan" if is_active == 1 else "dinonaktifkan"
+        
+        # If activated, register handlers immediately so it can respond to commands
+        if is_active == 1:
+            client_obj = telegram_client.get_client(session_name)
+            try:
+                if not client_obj.is_connected():
+                    await client_obj.connect()
+                if await client_obj.is_user_authorized():
+                    await client_obj.get_dialogs()
+                    import commands
+                    await commands.register_handlers([client_obj])
+                    logger.info(f"Registered command handlers for '{session_name}' on activation.")
+            except Exception as e:
+                logger.error(f"Failed to register command handlers for '{session_name}' on activation: {e}")
+                
         request.session["flash_success"] = f"Bot session '{session_name}' berhasil {status_text}."
     except Exception as e:
         request.session["flash_danger"] = f"Gagal mengubah status aktif session: {e}"

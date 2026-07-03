@@ -42,6 +42,15 @@ async def register_handlers(clients: list = None):
         clients = telegram_client.get_active_clients()
 
     async def command_router(event):
+        # Skip processing if the client session is deactivated in the database
+        client_name = None
+        for name, c in list(telegram_client.get_clients_dict().items()):
+            if c is event.client:
+                client_name = name
+                break
+        if client_name and not telegram_client.is_session_active(client_name):
+            return
+
         sender = await event.get_sender()
         sender_id = event.sender_id
         sender_username = sender.username if sender else None
