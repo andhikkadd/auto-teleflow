@@ -15,29 +15,37 @@ async def stream_output(stream, prefix):
             pass
 
 async def run_app(path, name):
-    """Run a sub-application using the current Python interpreter."""
+    """Run a sub-application using the current Python interpreter, auto-restarting if it exits."""
     prefix = f"[{name}]"
-    print(f"Starting application: {name} ({path})...", flush=True)
     
     # Resolve absolute path for working directory
     working_dir = os.path.dirname(os.path.abspath(path))
     script_name = os.path.basename(path)
     
-    process = await asyncio.create_subprocess_exec(
-        sys.executable, script_name,
-        cwd=working_dir,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    
-    # Start concurrent streaming of stdout and stderr
-    await asyncio.gather(
-        stream_output(process.stdout, prefix),
-        stream_output(process.stderr, prefix)
-    )
-    
-    return_code = await process.wait()
-    print(f"Application {name} terminated with return code {return_code}", flush=True)
+    while True:
+        print(f"Starting application: {name} ({path})...", flush=True)
+        try:
+            process = await asyncio.create_subprocess_exec(
+                sys.executable, script_name,
+                cwd=working_dir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            # Start concurrent streaming of stdout and stderr
+            await asyncio.gather(
+                stream_output(process.stdout, prefix),
+                stream_output(process.stderr, prefix)
+            )
+            
+            return_code = await process.wait()
+            print(f"Application {name} terminated with return code {return_code}. Restarting in 3 seconds...", flush=True)
+        except Exception as e:
+            print(f"Failed to run application {name}: {e}. Retrying in 5 seconds...", flush=True)
+            await asyncio.sleep(5)
+            continue
+            
+        await asyncio.sleep(3)
 
 async def main():
     # Fetch and print the actual public IP of the VPS Node

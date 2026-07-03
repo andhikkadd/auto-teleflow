@@ -305,6 +305,10 @@ async def register_handlers(clients: list = None):
                 await handle_logs(event, arg_str)
             elif cmd == "!reload":
                 await handle_reload(event)
+            elif cmd == "!restart":
+                await handle_restart(event)
+            elif cmd == "!update":
+                await handle_update(event)
             
             # New Group Health Commands
             elif cmd in ("!checkgroups", "!checkhealth", "/checkhealth"):
@@ -932,3 +936,25 @@ async def handle_autoclean(event):
     await event.reply("🧼 **Menjalankan pembersihan otomatis grup bermasalah...**")
     cnt = await group_svc.autoclean()
     await event.reply(f"✅ **Auto-clean selesai**: `{cnt}` grup bermasalah dinonaktifkan (diset SKIP).")
+
+async def handle_restart(event):
+    await event.reply("🔄 **Menghidupkan ulang bot...**")
+    import os
+    os._exit(0)
+
+async def handle_update(event):
+    await event.reply("🔄 **Mengunduh pembaruan dari Git (git pull)...**")
+    import subprocess
+    try:
+        process = subprocess.run(["git", "pull"], capture_output=True, text=True, check=True)
+        output = process.stdout
+        await event.reply(f"📥 **Git Pull Output**:\n`{output}`")
+        if "Already up to date." in output:
+            await event.reply("✅ Bot sudah menggunakan versi terbaru.")
+            return
+            
+        await event.reply("🔄 **Menghidupkan ulang bot untuk menerapkan pembaruan...**")
+        import os
+        os._exit(0)
+    except Exception as e:
+        await event.reply(f"❌ **Gagal memperbarui**: {e}")
