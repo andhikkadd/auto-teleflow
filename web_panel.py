@@ -1045,9 +1045,15 @@ async def get_sessions(request: Request):
         except Exception:
             pass
             
-        proxy_row = await db.fetchone("SELECT proxy_url, is_active FROM session_proxies WHERE session_name = ?", (name,))
+        proxy_row = await db.fetchone(
+            "SELECT proxy_url, is_active, last_status, last_status_detail, last_status_checked_at FROM session_proxies WHERE session_name = ?",
+            (name,)
+        )
         proxy_str = proxy_row["proxy_url"] if proxy_row else None
         is_active = proxy_row["is_active"] != 0 if proxy_row and proxy_row["is_active"] is not None else True
+        last_status = proxy_row["last_status"] if proxy_row and proxy_row["last_status"] else "UNKNOWN"
+        last_status_detail = proxy_row["last_status_detail"] if proxy_row and proxy_row["last_status_detail"] else ""
+        last_status_checked_at = proxy_row["last_status_checked_at"] if proxy_row and proxy_row["last_status_checked_at"] else ""
             
         sessions_data.append({
             "name": name,
@@ -1055,7 +1061,10 @@ async def get_sessions(request: Request):
             "authorized": authorized,
             "user_details": user_details,
             "proxy": proxy_str,
-            "is_active": is_active
+            "is_active": is_active,
+            "last_status": last_status,
+            "last_status_detail": last_status_detail,
+            "last_status_checked_at": last_status_checked_at
         })
         
     context = {
@@ -1066,6 +1075,121 @@ async def get_sessions(request: Request):
         **get_flash_context(request)
     }
     return templates.TemplateResponse(request, "sessions.html", context)
+
+@app.post("/sessions/{session_name}/check-status")
+async def post_check_session_status(request: Request, session_name: str):
+    if not request.session.get("logged_in"):
+        return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
+        
+    try:
+        client = telegram_client.get_client(session_name)
+        
+        # 1. Connect if not connected
+        if not client.is_connected():
+            await client.connect()
+            
+        # 2. Check authorization
+        authorized = await client.is_user_authorized()
+        if not authorized:
+            now_str = state.get_target_now().isoformat()
+            row = await db.fetchone("SELECT proxy_url, is_active FROM session_proxies WHERE session_name = ?", (session_name,))
+            proxy_url = row["proxy_url"] if row else None
+            is_active = row["is_active"] if row else 1
+            
+            await db.execute("""
+                INSERT OR REPLACE INTO session_proxies 
+                (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (session_name, proxy_url, is_active, "LOGGED_OUT", "Akun ter-logout / session tidak valid.", now_str, now_str))
+            
+            return JSONResponse({
+                "status": "LOGGED_OUT",
+                "message": "Akun ter-logout / session tidak valid.",
+                "checked_at": now_str
+            })
+            
+        # Get details
+        me = await client.get_me()
+        
+        # Check spamban via @SpamBot
+        status = "NORMAL"
+        detail = "Akun normal (tidak ada batasan dari @SpamBot)."
+        
+        try:
+            # Send /start to @SpamBot
+            await client.send_message("SpamBot", "/start")
+            # Sleep a bit to allow SpamBot to reply
+            await asyncio.sleep(2.0)
+            
+            # Fetch last messages from SpamBot
+            messages = await client.get_messages("SpamBot", limit=3)
+            bot_reply = None
+            for msg in messages:
+                if msg.out is False:  # incoming from SpamBot
+                    bot_reply = msg.text
+                    break
+            
+            if bot_reply:
+                bot_reply_lower = bot_reply.lower()
+                if "no limits are currently applied" in bot_reply_lower or "tidak ada batasan" in bot_reply_lower:
+                    status = "NORMAL"
+                    detail = "Akun normal (tidak ada batasan dari @SpamBot)."
+                else:
+                    status = "RESTRICTED"
+                    lines = [line.strip() for line in bot_reply.split('\n') if line.strip()]
+                    detail = lines[0] if lines else "Terkena batasan (Restricted)."
+            else:
+                status = "UNKNOWN"
+                detail = "SpamBot tidak merespons. Silakan coba beberapa saat lagi."
+        except Exception as bot_err:
+            logger.warning(f"Failed to converse with SpamBot for {session_name}: {bot_err}")
+            if me.restricted:
+                status = "RESTRICTED"
+                detail = f"Restricted. Reason: {me.restriction_reason}"
+            else:
+                status = "CONNECTED"
+                detail = f"Terkoneksi. Gagal chat @SpamBot: {bot_err}"
+                
+        now_str = state.get_target_now().isoformat()
+        row = await db.fetchone("SELECT proxy_url, is_active FROM session_proxies WHERE session_name = ?", (session_name,))
+        proxy_url = row["proxy_url"] if row else None
+        is_active = row["is_active"] if row else 1
+        
+        await db.execute("""
+            INSERT OR REPLACE INTO session_proxies 
+            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (session_name, proxy_url, is_active, status, detail, now_str, now_str))
+        
+        return JSONResponse({
+            "status": status,
+            "message": detail,
+            "first_name": me.first_name,
+            "username": me.username,
+            "checked_at": now_str
+        })
+    except Exception as e:
+        logger.error(f"Failed to check status for session '{session_name}': {e}", exc_info=True)
+        error_msg = str(e)
+        status = "ERROR"
+        if "revoked" in error_msg.lower() or "deactivated" in error_msg.lower() or "authorization" in error_msg.lower():
+            status = "LOGGED_OUT"
+            detail = f"Session tidak valid/ter-logout: {error_msg}"
+        else:
+            detail = f"Gagal mengecek status: {error_msg}"
+            
+        now_str = state.get_target_now().isoformat()
+        row = await db.fetchone("SELECT proxy_url, is_active FROM session_proxies WHERE session_name = ?", (session_name,))
+        proxy_url = row["proxy_url"] if row else None
+        is_active = row["is_active"] if row else 1
+        
+        await db.execute("""
+            INSERT OR REPLACE INTO session_proxies 
+            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (session_name, proxy_url, is_active, status, detail, now_str, now_str))
+        
+        return JSONResponse({"status": status, "message": detail, "checked_at": now_str})
 
 @app.post("/sessions/request-code")
 async def post_request_code(request: Request, phone_number: str = Form(...)):

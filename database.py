@@ -209,7 +209,10 @@ class Database:
 
         # Dynamic migrations check: check if the columns are in session_proxies table
         proxies_columns_to_add = {
-            "is_active": "INTEGER DEFAULT 1"
+            "is_active": "INTEGER DEFAULT 1",
+            "last_status": "TEXT DEFAULT 'UNKNOWN'",
+            "last_status_detail": "TEXT",
+            "last_status_checked_at": "TEXT"
         }
 
         try:

@@ -94,7 +94,44 @@
                                     <span class="badge status-badge bg-neon-success mb-1 d-inline-block">
                                         <i class="bi bi-check-circle-fill me-1"></i> Terkoneksi
                                     </span>
-                                    <form action="/sessions/toggle-active" method="post" class="m-0 mt-1">
+                                    {% else %}
+                                    <span class="badge status-badge bg-neon-danger mb-1 d-inline-block">
+                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Perlu Login
+                                    </span>
+                                    {% endif %}
+
+                                    <!-- Spamban / Shadowban status -->
+                                    <div class="mt-1" id="ban-status-container-{{ sess.name }}">
+                                        {% if sess.last_status == 'NORMAL' %}
+                                        <span class="badge bg-success text-white" style="font-size: 0.7rem;" title="{{ sess.last_status_detail }}">
+                                            <i class="bi bi-shield-check me-1"></i> No Limits
+                                        </span>
+                                        {% elif sess.last_status == 'RESTRICTED' %}
+                                        <span class="badge bg-danger text-white" style="font-size: 0.7rem;" title="{{ sess.last_status_detail }}">
+                                            <i class="bi bi-shield-slash me-1"></i> Limited / Ban
+                                        </span>
+                                        {% elif sess.last_status == 'LOGGED_OUT' %}
+                                        <span class="badge bg-warning text-dark" style="font-size: 0.7rem;" title="{{ sess.last_status_detail }}">
+                                            <i class="bi bi-door-closed me-1"></i> Logged Out
+                                        </span>
+                                        {% elif sess.last_status == 'ERROR' %}
+                                        <span class="badge bg-secondary text-white" style="font-size: 0.7rem;" title="{{ sess.last_status_detail }}">
+                                            <i class="bi bi-exclamation-circle me-1"></i> Error
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-dark text-muted" style="font-size: 0.7rem;" title="Belum pernah dicek">
+                                            <i class="bi bi-question-circle me-1"></i> Belum Dicek
+                                        </span>
+                                        {% endif %}
+                                        {% if sess.last_status_detail and sess.last_status != 'NORMAL' %}
+                                        <div class="text-secondary small font-monospace mt-1" style="font-size: 0.65rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                                            {{ sess.last_status_detail }}
+                                        </div>
+                                        {% endif %}
+                                    </div>
+
+                                    {% if sess.authorized %}
+                                    <form action="/sessions/toggle-active" method="post" class="m-0 mt-2">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <input type="hidden" name="session_name" value="{{ sess.name }}">
                                         <input type="hidden" name="is_active" id="active_val_{{ sess.name }}"
@@ -109,10 +146,6 @@
                                             </label>
                                         </div>
                                     </form>
-                                    {% else %}
-                                    <span class="badge status-badge bg-neon-danger">
-                                        <i class="bi bi-exclamation-triangle-fill me-1"></i> Perlu Login
-                                    </span>
                                     {% endif %}
                                 </td>
                                 <td>
@@ -127,6 +160,14 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-end pe-4">
+                                    {% if sess.authorized %}
+                                    <button class="btn btn-outline-warning btn-sm rounded-pill px-3 me-1"
+                                        id="btn-check-{{ sess.name }}"
+                                        onclick="checkStatus('{{ sess.name }}')">
+                                        <span class="spinner-border spinner-border-sm me-1 d-none" id="spinner-check-{{ sess.name }}" role="status"></span>
+                                        <i class="bi bi-shield-shaded me-1"></i> Cek Ban
+                                    </button>
+                                    {% endif %}
                                     <button class="btn btn-outline-info btn-sm rounded-pill px-3 me-1"
                                         onclick="openProxyModal('{{ sess.name }}', '{{ sess.proxy or '' }}')">
                                         <i class="bi bi-globe me-1"></i> Proxy
@@ -417,6 +458,83 @@
         const hid = document.getElementById('active_val_' + sessionName);
         hid.value = sw.checked ? '1' : '0';
         sw.form.submit();
+    };
+
+    window.checkStatus = async function (sessionName) {
+        const btn = document.getElementById(`btn-check-${sessionName}`);
+        const spinner = document.getElementById(`spinner-check-${sessionName}`);
+        const container = document.getElementById(`ban-status-container-${sessionName}`);
+        
+        if (!btn || !spinner || !container) return;
+        
+        // UI Loading State
+        btn.disabled = true;
+        spinner.classList.remove('d-none');
+        
+        try {
+            const response = await fetch(`/sessions/${sessionName}/check-status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    csrf_token: csrfToken
+                })
+            });
+            const data = await response.json();
+            
+            let badgeHtml = '';
+            let detailHtml = '';
+            
+            if (data.status === 'NORMAL') {
+                badgeHtml = `
+                    <span class="badge bg-success text-white" style="font-size: 0.7rem;" title="${data.message}">
+                        <i class="bi bi-shield-check me-1"></i> No Limits
+                    </span>
+                `;
+            } else if (data.status === 'RESTRICTED') {
+                badgeHtml = `
+                    <span class="badge bg-danger text-white" style="font-size: 0.7rem;" title="${data.message}">
+                        <i class="bi bi-shield-slash me-1"></i> Limited / Ban
+                    </span>
+                `;
+                detailHtml = `<div class="text-secondary small font-monospace mt-1" style="font-size: 0.65rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${data.message}</div>`;
+            } else if (data.status === 'LOGGED_OUT') {
+                badgeHtml = `
+                    <span class="badge bg-warning text-dark" style="font-size: 0.7rem;" title="${data.message}">
+                        <i class="bi bi-door-closed me-1"></i> Logged Out
+                    </span>
+                `;
+                detailHtml = `<div class="text-secondary small font-monospace mt-1" style="font-size: 0.65rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${data.message}</div>`;
+            } else if (data.status === 'ERROR') {
+                badgeHtml = `
+                    <span class="badge bg-secondary text-white" style="font-size: 0.7rem;" title="${data.message}">
+                        <i class="bi bi-exclamation-circle me-1"></i> Error
+                    </span>
+                `;
+                detailHtml = `<div class="text-secondary small font-monospace mt-1" style="font-size: 0.65rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${data.message}</div>`;
+            } else {
+                badgeHtml = `
+                    <span class="badge bg-dark text-muted" style="font-size: 0.7rem;" title="Unknown status">
+                        <i class="bi bi-question-circle me-1"></i> Unknown
+                    </span>
+                `;
+            }
+            
+            container.innerHTML = badgeHtml + detailHtml;
+            
+            if (data.status === 'LOGGED_OUT') {
+                showFeedback('danger', `Akun '${sessionName}' terdeteksi telah ter-logout atau terblokir permanen!`);
+                setTimeout(() => window.location.reload(), 2000);
+            } else {
+                showFeedback('success', `Cek status akun '${sessionName}' selesai: ${data.message}`);
+            }
+        } catch (err) {
+            showFeedback('danger', `Gagal mengecek status akun '${sessionName}': Terjadi kesalahan jaringan.`);
+        } finally {
+            btn.disabled = false;
+            spinner.classList.add('d-none');
+        }
     };
 </script>
 {% endblock %}

@@ -216,13 +216,14 @@ async def register_handlers(clients: list = None):
 
         # Utility commands that should only be handled once by any client
         single_response_cmds = (
-            "!ping", "!status", "!server", "!pause", "!resume", 
+            "!help", "!menu", "!server", "!pause", "!resume", 
             "!addgroup", "!addgroups", "!groups", "!delgroup", 
-            "!addtemplate", "!templates", "!deltemplate",
+            "!skip", "!unskip",
+            "!addtemplate", "!templates", "!deltemplate", "!addtemplates",
             "!setdelay", "!setgroupdelay", "!clean", "!autoclean",
             "!wave", "!checkgroups", "!checkhealth", "/checkhealth",
             "!health", "!failedgroups", "!resetgroup", "!checkgroup",
-            "!restart", "!update"
+            "!restart", "!update", "!reload", "!preview", "!backup"
         )
         if cmd in single_response_cmds:
             if state.is_command_processed(event.chat_id, event.id):
