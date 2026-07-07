@@ -1124,14 +1124,35 @@ async def post_submit_otp(
     client = pending["client"]
     phone_code_hash = pending["phone_code_hash"]
     
-    from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, PhoneCodeExpiredError
+    from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError, PhoneCodeExpiredError, PasswordHashInvalidError
+    pwd_val = two_factor_password.strip() if two_factor_password else ""
     try:
-        await client.sign_in(
-            phone=phone,
-            code=otp_code.strip(),
-            password=two_factor_password or "",
-            phone_code_hash=phone_code_hash
-        )
+        if pwd_val:
+            try:
+                # 1. Try to sign in with password directly (if code was already verified on a previous attempt)
+                await client.sign_in(password=pwd_val)
+                logger.info(f"Successfully signed in with 2FA password for {phone} (code already verified in previous attempt).")
+            except PasswordHashInvalidError:
+                return JSONResponse({"status": "error", "message": "2FA password is incorrect."})
+            except Exception as e:
+                # 2. If direct password login fails, fall back to verifying the code
+                logger.info(f"Direct password sign-in attempt failed, falling back to code: {e}")
+                try:
+                    await client.sign_in(
+                        phone=phone,
+                        code=otp_code.strip(),
+                        phone_code_hash=phone_code_hash
+                    )
+                except SessionPasswordNeededError:
+                    # 3. Code verification succeeded, but 2FA is needed. Sign in with the password.
+                    await client.sign_in(password=pwd_val)
+        else:
+            # Normal sign-in with code when no password is provided
+            await client.sign_in(
+                phone=phone,
+                code=otp_code.strip(),
+                phone_code_hash=phone_code_hash
+            )
         # Sign in successful! Clean up pending
         telegram_client.pending_logins.pop(phone, None)
         
@@ -1145,6 +1166,8 @@ async def post_submit_otp(
         return JSONResponse({"status": "success", "message": "Successfully authenticated!"})
     except SessionPasswordNeededError:
         return JSONResponse({"status": "password_required", "message": "2FA password is required."})
+    except PasswordHashInvalidError:
+        return JSONResponse({"status": "error", "message": "2FA password is incorrect."})
     except (PhoneCodeInvalidError, PhoneCodeExpiredError) as err:
         return JSONResponse({"status": "error", "message": f"OTP Error: {err}"})
     except Exception as e:
