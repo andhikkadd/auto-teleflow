@@ -300,6 +300,19 @@ class Database:
             "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
             ("timezone_offset", "7", now_str)
         )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("forward_mode_enabled", "0", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("forward_mode_source", "", now_str)
+        )
+        await self.execute(
+            "INSERT OR IGNORE INTO settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("forward_mode_type", "copy", now_str)
+        )
+
 
         # Verify if there is at least one default template, insert one if empty
         templates = await self.fetchall("SELECT * FROM templates")

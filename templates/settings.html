@@ -37,6 +37,34 @@
 
                 <hr class="border-secondary my-4">
 
+                <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-share me-2 text-primary"></i>Forwarding Mode (Bot/Channel Source)</h6>
+
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="forward_mode_enabled" name="forward_mode_enabled" {% if settings.forward_mode_enabled == '1' %}checked{% endif %}>
+                        <label class="form-check-label text-secondary small fw-semibold" for="forward_mode_enabled">Enable Forwarding Mode (Bypass Templates)</label>
+                    </div>
+                    <div class="form-text text-muted small mt-1">Jika diaktifkan, bot akan mengirimkan pesan terakhir dari bot/channel sumber kustom alih-alih menggunakan template pesan lokal.</div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="forward_mode_source" class="form-label text-secondary small fw-semibold">Source Bot/Channel Username/ID</label>
+                        <input type="text" class="form-control form-control-custom" id="forward_mode_source" name="forward_mode_source" value="{{ settings.forward_mode_source or '' }}" placeholder="@my_promo_channel atau ID chat">
+                        <div class="form-text text-muted small mt-1">Username channel/bot asal pesan (misal: `@tuntungpedia` atau ID).</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="forward_mode_type" class="form-label text-secondary small fw-semibold">Forwarding Method</label>
+                        <select class="form-select form-select-custom" id="forward_mode_type" name="forward_mode_type" style="background-color: #1a1a1a; color: #fff; border: 1px solid rgba(255, 255, 255, 0.1);">
+                            <option value="copy" {% if settings.forward_mode_type == 'copy' or not settings.forward_mode_type %}selected{% endif %}>Send Copy (Tanpa Label 'Forwarded')</option>
+                            <option value="forward" {% if settings.forward_mode_type == 'forward' %}selected{% endif %}>Forward Message (Dengan Label 'Forwarded')</option>
+                        </select>
+                        <div class="form-text text-muted small mt-1">Metode kirim: 'Send Copy' (disarankan karena akun pengirim tidak perlu join ke channel sumber) atau 'Forward'.</div>
+                    </div>
+                </div>
+
+                <hr class="border-secondary my-4">
+
                 <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-envelope-paper me-1"></i>Reporting &amp; Operations</h6>
 
                 <div class="mb-3">

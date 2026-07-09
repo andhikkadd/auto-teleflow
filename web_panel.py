@@ -774,7 +774,10 @@ async def post_save_settings(
     timezone_offset: str = Form("7"),
     typing_simulation_enabled: Optional[str] = Form(None),
     typing_simulation_min: int = Form(3),
-    typing_simulation_max: int = Form(7)
+    typing_simulation_max: int = Form(7),
+    forward_mode_enabled: Optional[str] = Form(None),
+    forward_mode_source: str = Form(""),
+    forward_mode_type: str = Form("copy")
 ):
     try:
         # Input Validation Checks
@@ -794,6 +797,9 @@ async def post_save_settings(
             raise ValueError("Typing emulation delay must be a positive integer.")
         if typing_simulation_max < typing_simulation_min:
             raise ValueError("Max typing emulation delay must be greater than or equal to min delay.")
+        if forward_mode_enabled is not None:
+            if not forward_mode_source or not forward_mode_source.strip():
+                raise ValueError("Source bot/channel username or ID is required when forwarding mode is enabled.")
             
         if human_mode_enabled is not None:
             try:
@@ -835,6 +841,10 @@ async def post_save_settings(
         await settings_svc.set_setting("typing_simulation_enabled", "1" if typing_simulation_enabled is not None else "0")
         await settings_svc.set_setting("typing_simulation_min", str(typing_simulation_min))
         await settings_svc.set_setting("typing_simulation_max", str(typing_simulation_max))
+
+        await settings_svc.set_setting("forward_mode_enabled", "1" if forward_mode_enabled is not None else "0")
+        await settings_svc.set_setting("forward_mode_source", forward_mode_source.strip())
+        await settings_svc.set_setting("forward_mode_type", forward_mode_type.strip())
         
         # Apply parameters to running state immediately
         state.min_delay = min_delay

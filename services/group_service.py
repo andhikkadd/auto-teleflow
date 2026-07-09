@@ -418,7 +418,26 @@ class GroupService:
             target = int(target)
             
         # Get content
-        if custom_msg:
+        source_msg = None
+        forward_enabled = "0"
+        forward_type = "copy"
+        
+        from services.settings_service import settings_svc
+        if not custom_msg:
+            forward_enabled = await settings_svc.get_setting("forward_mode_enabled", "0")
+            forward_type = await settings_svc.get_setting("forward_mode_type", "copy")
+            
+        if not custom_msg and forward_enabled == "1":
+            source_peer = await settings_svc.get_setting("forward_mode_source", "")
+            if not source_peer:
+                raise ValueError("Forward mode is enabled but no source peer is configured.")
+            from utils import resolve_target_entity
+            source_entity = await resolve_target_entity(client, source_peer)
+            msgs = await client.get_messages(source_entity, limit=1)
+            if not msgs:
+                raise ValueError(f"No messages found in source peer '{source_peer}'")
+            source_msg = msgs[0]
+        elif custom_msg:
             message_text = custom_msg
         else:
             templates = await db.fetchall("SELECT * FROM templates WHERE is_active = 1")
@@ -445,7 +464,14 @@ class GroupService:
             if not entity:
                 raise ValueError("Could not resolve target entity")
                 
-            sent_msg = await client.send_message(entity, message_text)
+            if source_msg:
+                if forward_type == "forward":
+                    sent_msgs = await client.forward_messages(entity, source_msg)
+                    sent_msg = sent_msgs[0] if isinstance(sent_msgs, list) else sent_msgs
+                else:
+                    sent_msg = await client.send_message(entity, source_msg)
+            else:
+                sent_msg = await client.send_message(entity, message_text)
             
             # Post-delivery check: verify message is visible
             is_verified = await GroupService.verify_message_delivery(entity, sent_msg.id)

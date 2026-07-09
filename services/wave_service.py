@@ -26,12 +26,24 @@ class WaveService:
         logger.info(f"Starting wave triggered by: {triggered_by}")
         
         try:
-            # 2. Get active templates
-            templates = await template_svc.get_active_templates()
-            if not templates:
-                logger.error("No active promotion templates found. Wave aborted.")
-                # Send emergency error if target is configured
-                return
+            # 2. Get active templates or forward source configuration
+            forward_enabled = await settings_svc.get_setting("forward_mode_enabled", "0")
+            forward_type = await settings_svc.get_setting("forward_mode_type", "copy")
+            source_msg = None
+            source_peer = ""
+            templates = []
+            
+            if forward_enabled == "1":
+                source_peer = await settings_svc.get_setting("forward_mode_source", "")
+                if not source_peer:
+                    logger.error("Forward mode is enabled but no source peer is configured. Wave aborted.")
+                    return
+            else:
+                templates = await template_svc.get_active_templates()
+                if not templates:
+                    logger.error("No active promotion templates found. Wave aborted.")
+                    # Send emergency error if target is configured
+                    return
             
             # 3. Get active target groups that are not in cooldown
             now_iso = state.get_target_now().isoformat()
@@ -88,6 +100,31 @@ class WaveService:
                     (state.get_target_now().isoformat(), wave_log_id)
                 )
                 return
+
+            # Fetch forward message if enabled
+            if forward_enabled == "1":
+                try:
+                    fetch_client = active_clients[0]
+                    from utils import resolve_target_entity
+                    source_entity = await resolve_target_entity(fetch_client, source_peer)
+                    
+                    msgs = await fetch_client.get_messages(source_entity, limit=1)
+                    if not msgs:
+                        logger.error(f"No messages found in source peer '{source_peer}'. Wave aborted.")
+                        await db.execute(
+                            "UPDATE wave_logs SET finished_at = ?, status = 'failed', success_count = 0, fail_count = 0 WHERE id = ?",
+                            (state.get_target_now().isoformat(), wave_log_id)
+                        )
+                        return
+                    source_msg = msgs[0]
+                    logger.info(f"Successfully fetched source message ID {source_msg.id} from '{source_peer}' for forwarding/copying.")
+                except Exception as fetch_err:
+                    logger.error(f"Failed to fetch source message from '{source_peer}': {fetch_err}")
+                    await db.execute(
+                        "UPDATE wave_logs SET finished_at = ?, status = 'failed', success_count = 0, fail_count = 0 WHERE id = ?",
+                        (state.get_target_now().isoformat(), wave_log_id)
+                    )
+                    return
             
             # Gather sender IDs for our active client accounts
             my_user_ids = []
@@ -121,6 +158,8 @@ class WaveService:
                 # Shuffled template pool for this worker to ensure even distribution
                 template_pool = []
                 def get_next_template():
+                    if forward_enabled == "1":
+                        return None
                     nonlocal template_pool
                     if not template_pool:
                         template_pool = [t["text"] for t in templates]
@@ -308,8 +347,16 @@ class WaveService:
                                 raise
                             logger.warning(f"Failed to simulate typing action in {grp_title}: {typing_err}")
 
-                        logger.info(f"Worker #{worker_id} ({client_name}) sending message to {grp_title} ({resolved_username})...")
-                        sent_msg = await client.send_message(entity, selected_template)
+                        if forward_enabled == "1":
+                            logger.info(f"Worker #{worker_id} ({client_name}) sending source message to {grp_title} ({resolved_username}) via {forward_type}...")
+                            if forward_type == "forward":
+                                sent_msgs = await client.forward_messages(entity, source_msg)
+                                sent_msg = sent_msgs[0] if isinstance(sent_msgs, list) else sent_msgs
+                            else:
+                                sent_msg = await client.send_message(entity, source_msg)
+                        else:
+                            logger.info(f"Worker #{worker_id} ({client_name}) sending message to {grp_title} ({resolved_username})...")
+                            sent_msg = await client.send_message(entity, selected_template)
                         
                         # Verify message visibility post-delivery
                         is_verified = await group_svc.verify_message_delivery(entity, sent_msg.id, client=client)
