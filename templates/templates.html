@@ -83,7 +83,15 @@
             <!-- Right column: List of Regular Templates -->
             <div class="col-lg-7 mb-4">
                 <div class="glass-card">
-                    <h5 class="fw-bold mb-4"><i class="bi bi-folder-symlink text-primary me-2"></i>Saved Templates (Regular)</h5>
+                    <h5 class="fw-bold mb-3"><i class="bi bi-folder-symlink text-primary me-2"></i>Saved Templates (Regular)</h5>
+                    
+                    <!-- Real-time Search Bar -->
+                    <div class="mb-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-dark border-secondary text-secondary" style="border-radius: 8px 0 0 8px;"><i class="bi bi-search"></i></span>
+                            <input type="text" id="searchRegular" class="form-control form-control-custom bg-dark border-secondary text-white" placeholder="Cari berdasarkan ID atau isi teks..." oninput="handleSearch('regular')" style="border-radius: 0 8px 8px 0;">
+                        </div>
+                    </div>
                     
                     {% if templates %}
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-30 gap-2">
@@ -111,57 +119,13 @@
                     </div>
                     {% endif %}
                     
-                    {% if not templates %}
-                    <div class="text-center py-5 text-secondary">
-                        <i class="bi bi-card-text" style="font-size: 3rem;"></i>
-                        <p class="mt-3">No templates found. Please add a template on the left panel.</p>
+                    <!-- Dynamic Templates Container -->
+                    <div id="regular-templates-list" class="d-flex flex-column gap-3">
+                        <!-- Rendered dynamically by JS -->
                     </div>
-                    {% else %}
-                    <div class="d-flex flex-column gap-3">
-                        {% for t in templates %}
-                        <div class="border border-secondary rounded p-3 bg-dark bg-opacity-20 d-flex flex-column justify-content-between">
-                            <div>
-                                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-50">
-                                    <div class="form-check m-0">
-                                        <input class="form-check-input regular-checkbox" type="checkbox" value="{{ t.id }}" id="chk-reg-{{ t.id }}" onchange="updateSelectedCount('regular')">
-                                        <label class="form-check-label text-secondary small fw-bold ms-1" for="chk-reg-{{ t.id }}">
-                                            <i class="bi bi-hash me-1"></i>Template ID #{{ t.id }}
-                                        </label>
-                                    </div>
-                                    {% if t.is_active == 1 %}
-                                    <span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
-                                    {% else %}
-                                    <span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Inactive</span>
-                                    {% endif %}
-                                </div>
-                                <div style="white-space: pre-wrap;" class="text-secondary small font-monospace">{{ t.text }}</div>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-50">
-                                <div>
-                                    {% if t.is_active == 1 %}
-                                    <form action="/templates/{{ t.id }}/toggle-active" method="post" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-secondary-custom btn-sm btn-custom">
-                                            <i class="bi bi-toggle-off me-1"></i>Deactivate
-                                        </button>
-                                    </form>
-                                    {% else %}
-                                    <form action="/templates/{{ t.id }}/toggle-active" method="post" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-success btn-sm btn-custom">
-                                            <i class="bi bi-toggle-on me-1"></i>Activate
-                                        </button>
-                                    </form>
-                                    {% endif %}
-                                </div>
-                                <button class="btn btn-danger-custom btn-sm btn-custom" onclick="triggerDeleteModal('{{ t.id }}')">
-                                    <i class="bi bi-trash me-1"></i>Delete
-                                </button>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
+                    
+                    <!-- Pagination Controls -->
+                    <div id="regular-pagination" class="d-flex justify-content-center mt-3"></div>
                 </div>
             </div>
         </div>
@@ -231,7 +195,15 @@
                 </div>
 
                 <div class="glass-card">
-                    <h5 class="fw-bold mb-4"><i class="bi bi-clock-history text-warning me-2"></i>Saved Override Templates</h5>
+                    <h5 class="fw-bold mb-3"><i class="bi bi-clock-history text-warning me-2"></i>Saved Override Templates</h5>
+                    
+                    <!-- Real-time Search Bar -->
+                    <div class="mb-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-dark border-secondary text-secondary" style="border-radius: 8px 0 0 8px;"><i class="bi bi-search"></i></span>
+                            <input type="text" id="searchOverride" class="form-control form-control-custom bg-dark border-secondary text-white" placeholder="Cari berdasarkan ID atau isi teks..." oninput="handleSearch('override')" style="border-radius: 0 8px 8px 0;">
+                        </div>
+                    </div>
                     
                     {% if override_templates %}
                     <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary border-opacity-30 gap-2">
@@ -259,57 +231,13 @@
                     </div>
                     {% endif %}
                     
-                    {% if not override_templates %}
-                    <div class="text-center py-4 text-secondary">
-                        <i class="bi bi-calendar-x" style="font-size: 2.5rem;"></i>
-                        <p class="mt-2 small">Belum ada template override kustom.</p>
+                    <!-- Dynamic Templates Container -->
+                    <div id="override-templates-list" class="d-flex flex-column gap-3">
+                        <!-- Rendered dynamically by JS -->
                     </div>
-                    {% else %}
-                    <div class="d-flex flex-column gap-3">
-                        {% for ot in override_templates %}
-                        <div class="border border-secondary rounded p-3 bg-dark bg-opacity-20 d-flex flex-column justify-content-between">
-                            <div>
-                                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-50">
-                                    <div class="form-check m-0">
-                                        <input class="form-check-input override-checkbox" type="checkbox" value="{{ ot.id }}" id="chk-ovr-{{ ot.id }}" onchange="updateSelectedCount('override')">
-                                        <label class="form-check-label text-secondary small fw-bold ms-1" for="chk-ovr-{{ ot.id }}">
-                                            <i class="bi bi-hash me-1"></i>Override ID #{{ ot.id }}
-                                        </label>
-                                    </div>
-                                    {% if ot.is_active == 1 %}
-                                    <span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
-                                    {% else %}
-                                    <span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Inactive</span>
-                                    {% endif %}
-                                </div>
-                                <div style="white-space: pre-wrap;" class="text-secondary small font-monospace">{{ ot.text }}</div>
-                            </div>
-                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-50">
-                                <div>
-                                    {% if ot.is_active == 1 %}
-                                    <form action="/templates/{{ ot.id }}/toggle-active" method="post" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-secondary-custom btn-sm btn-custom">
-                                            <i class="bi bi-toggle-off me-1"></i>Deactivate
-                                        </button>
-                                    </form>
-                                    {% else %}
-                                    <form action="/templates/{{ ot.id }}/toggle-active" method="post" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn btn-success btn-sm btn-custom">
-                                            <i class="bi bi-toggle-on me-1"></i>Activate
-                                        </button>
-                                    </form>
-                                    {% endif %}
-                                </div>
-                                <button class="btn btn-danger-custom btn-sm btn-custom" onclick="triggerDeleteModal('{{ ot.id }}')">
-                                    <i class="bi bi-trash me-1"></i>Delete
-                                </button>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
+                    
+                    <!-- Pagination Controls -->
+                    <div id="override-pagination" class="d-flex justify-content-center mt-3"></div>
                 </div>
             </div>
         </div>
@@ -361,6 +289,23 @@
                     <button type="submit" class="btn btn-custom btn-danger-custom">Hapus Semua</button>
                 </form>
             </div>
+</div>
+
+<!-- Modal for Viewing Full Template Text -->
+<div class="modal fade" id="viewTemplateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-text text-primary me-2"></i>Detail Template <span id="viewTemplateId" class="text-secondary small"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="viewTemplateText" class="p-3 bg-black bg-opacity-40 rounded text-secondary font-monospace" style="white-space: pre-wrap; max-height: 450px; overflow-y: auto; font-size: 0.85rem;"></pre>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-custom btn-secondary-custom" onclick="copyViewedTemplateText()"><i class="bi bi-clipboard me-1"></i>Salin Teks</button>
+                <button type="button" class="btn btn-custom btn-secondary-custom" data-bs-dismiss="modal">Tutup</button>
+            </div>
         </div>
     </div>
 </div>
@@ -369,30 +314,119 @@
 
 {% block scripts %}
 <script>
+    // Templates Data loaded from Jinja context
+    const allRegularTemplates = {{ templates_json | safe }};
+    const allOverrideTemplates = {{ override_templates_json | safe }};
+    const csrfToken = "{{ csrf_token }}";
+
+    // Pagination & Search States
+    const state = {
+        regular: {
+            data: allRegularTemplates,
+            filtered: allRegularTemplates,
+            page: 1,
+            limit: 5, // 5 templates per page to prevent lag
+            search: ""
+        },
+        override: {
+            data: allOverrideTemplates,
+            filtered: allOverrideTemplates,
+            page: 1,
+            limit: 5,
+            search: ""
+        }
+    };
+
+    // Keep track of checked IDs globally to survive page changes
+    const selectedIds = {
+        regular: [],
+        override: []
+    };
+
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
     function triggerDeleteModal(id) {
         document.getElementById('deleteTargetId').innerText = id;
         document.getElementById('deleteForm').action = '/templates/' + id + '/delete';
         new bootstrap.Modal(document.getElementById('deleteModal')).show();
     }
 
+    function showFullTemplate(id, type) {
+        const list = type === 'regular' ? allRegularTemplates : allOverrideTemplates;
+        const item = list.find(t => t.id === id);
+        if (item) {
+            document.getElementById('viewTemplateId').innerText = `#${id}`;
+            document.getElementById('viewTemplateText').innerText = item.text;
+            new bootstrap.Modal(document.getElementById('viewTemplateModal')).show();
+        }
+    }
+
+    function copyViewedTemplateText() {
+        const text = document.getElementById('viewTemplateText').innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            alert('Teks template berhasil disalin ke clipboard!');
+        }).catch(err => {
+            console.error('Gagal menyalin teks: ', err);
+        });
+    }
+
+    function handleSearch(type) {
+        const query = document.getElementById(type === 'regular' ? 'searchRegular' : 'searchOverride').value.toLowerCase().trim();
+        state[type].search = query;
+        state[type].page = 1; // reset page to 1
+        
+        state[type].filtered = state[type].data.filter(t => {
+            return t.id.toString().includes(query) || t.text.toLowerCase().includes(query);
+        });
+        
+        renderTemplates(type);
+        updateSelectedCount(type);
+    }
+
+    function handleCheckboxChange(type, id, element) {
+        if (element.checked) {
+            if (!selectedIds[type].includes(id)) {
+                selectedIds[type].push(id);
+            }
+        } else {
+            selectedIds[type] = selectedIds[type].filter(item => item !== id);
+        }
+        updateSelectedCount(type);
+    }
+
     function toggleSelectAll(type) {
         const selectAllChk = document.getElementById(type === 'regular' ? 'selectAllRegular' : 'selectAllOverride');
-        const checkboxes = document.querySelectorAll(type === 'regular' ? '.regular-checkbox' : '.override-checkbox');
-        checkboxes.forEach(chk => {
-            chk.checked = selectAllChk.checked;
-        });
+        const currentFilteredIds = state[type].filtered.map(t => t.id);
+        
+        if (selectAllChk.checked) {
+            currentFilteredIds.forEach(id => {
+                if (!selectedIds[type].includes(id)) {
+                    selectedIds[type].push(id);
+                }
+            });
+        } else {
+            currentFilteredIds.forEach(id => {
+                selectedIds[type] = selectedIds[type].filter(item => item !== id);
+            });
+        }
+        
+        renderTemplates(type);
         updateSelectedCount(type);
     }
 
     function updateSelectedCount(type) {
-        const checkboxes = document.querySelectorAll(type === 'regular' ? '.regular-checkbox' : '.override-checkbox');
-        let selectedCount = 0;
-        checkboxes.forEach(chk => {
-            if (chk.checked) selectedCount++;
-        });
-        
         const countSpan = document.getElementById(type === 'regular' ? 'selectedRegularCount' : 'selectedOverrideCount');
         const container = document.getElementById(type === 'regular' ? 'bulkActionsRegularContainer' : 'bulkActionsOverrideContainer');
+        const selectedCount = selectedIds[type].length;
         
         if (countSpan) countSpan.innerText = selectedCount;
         
@@ -404,57 +438,196 @@
             }
         }
         
+        // Sync Select All checkbox for current page
         const selectAllChk = document.getElementById(type === 'regular' ? 'selectAllRegular' : 'selectAllOverride');
         if (selectAllChk) {
-            selectAllChk.checked = (selectedCount === checkboxes.length && checkboxes.length > 0);
+            const pageItems = getPageItems(type);
+            const allPageChecked = pageItems.length > 0 && pageItems.every(t => selectedIds[type].includes(t.id));
+            selectAllChk.checked = allPageChecked;
+        }
+    }
+
+    function getPageItems(type) {
+        const s = state[type];
+        const start = (s.page - 1) * s.limit;
+        const end = start + s.limit;
+        return s.filtered.slice(start, end);
+    }
+
+    function renderTemplates(type) {
+        const s = state[type];
+        const containerId = type === 'regular' ? 'regular-templates-list' : 'override-templates-list';
+        const container = document.getElementById(containerId);
+        
+        if (!container) return;
+        
+        if (s.filtered.length === 0) {
+            container.innerHTML = `
+                <div class="text-center py-5 text-secondary">
+                    <i class="bi bi-card-text" style="font-size: 3rem;"></i>
+                    <p class="mt-3">Tidak ada template yang ditemukan.</p>
+                </div>
+            `;
+            const paginationEl = document.getElementById(type === 'regular' ? 'regular-pagination' : 'override-pagination');
+            if (paginationEl) paginationEl.innerHTML = '';
+            return;
+        }
+        
+        const pageItems = getPageItems(type);
+        let html = '';
+        pageItems.forEach(t => {
+            html += getTemplateCardHtml(t, type);
+        });
+        
+        container.innerHTML = html;
+        renderPagination(type);
+    }
+
+    function getTemplateCardHtml(t, type) {
+        const isChecked = selectedIds[type].includes(t.id) ? 'checked' : '';
+        const isActiveBadge = t.is_active === 1 
+            ? '<span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>'
+            : '<span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Inactive</span>';
+            
+        const toggleButton = t.is_active === 1
+            ? `<form action="/templates/${t.id}/toggle-active" method="post" class="d-inline">
+                <input type="hidden" name="csrf_token" value="${csrfToken}">
+                <button type="submit" class="btn btn-secondary-custom btn-sm btn-custom">
+                    <i class="bi bi-toggle-off me-1"></i>Deactivate
+                </button>
+               </form>`
+            : `<form action="/templates/${t.id}/toggle-active" method="post" class="d-inline">
+                <input type="hidden" name="csrf_token" value="${csrfToken}">
+                <button type="submit" class="btn btn-success btn-sm btn-custom">
+                    <i class="bi bi-toggle-on me-1"></i>Activate
+                </button>
+               </form>`;
+               
+        const limit = 200;
+        let displayText = escapeHtml(t.text);
+        let showMoreBtn = '';
+        if (t.text.length > limit) {
+            displayText = escapeHtml(t.text.substring(0, limit)) + '...';
+            showMoreBtn = `<button class="btn btn-link btn-sm text-info p-0 ms-2" style="font-size:0.8rem;text-decoration:none;" onclick="showFullTemplate(${t.id}, '${type}')"><i class="bi bi-eye me-1"></i>Baca Selengkapnya</button>`;
+        }
+        
+        const cardClass = type === 'regular' ? 'border-secondary' : 'border-warning border-opacity-30';
+        const hashIconClass = type === 'regular' ? 'text-primary' : 'text-warning';
+        
+        return `
+            <div class="border ${cardClass} rounded p-3 bg-dark bg-opacity-20 d-flex flex-column justify-content-between">
+                <div>
+                    <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-secondary border-opacity-50">
+                        <div class="form-check m-0">
+                            <input class="form-check-input ${type}-checkbox" type="checkbox" value="${t.id}" id="chk-${type}-${t.id}" ${isChecked} onchange="handleCheckboxChange('${type}', ${t.id}, this)">
+                            <label class="form-check-label text-secondary small fw-bold ms-1" for="chk-${type}-${t.id}">
+                                <i class="bi bi-hash ${hashIconClass} me-1"></i>Template ID #${t.id}
+                            </label>
+                        </div>
+                        ${isActiveBadge}
+                    </div>
+                    <div style="white-space: pre-wrap;" class="text-secondary small font-monospace">${displayText}${showMoreBtn}</div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-secondary border-opacity-50">
+                    <div>
+                        ${toggleButton}
+                    </div>
+                    <button class="btn btn-danger-custom btn-sm btn-custom" onclick="triggerDeleteModal('${t.id}')">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderPagination(type) {
+        const s = state[type];
+        const totalPages = Math.ceil(s.filtered.length / s.limit);
+        const paginationContainerId = type === 'regular' ? 'regular-pagination' : 'override-pagination';
+        const container = document.getElementById(paginationContainerId);
+        
+        if (!container || totalPages <= 1) {
+            if (container) container.innerHTML = '';
+            return;
+        }
+        
+        let html = '<ul class="pagination pagination-sm m-0">';
+        
+        // Prev button
+        html += `
+            <li class="page-item ${s.page === 1 ? 'disabled' : ''}">
+                <button class="page-link bg-dark border-secondary text-secondary" onclick="changePage('${type}', ${s.page - 1})" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </button>
+            </li>
+        `;
+        
+        // Page buttons
+        for (let i = 1; i <= totalPages; i++) {
+            const activeClass = s.page === i ? 'active' : '';
+            const activeStyle = s.page === i ? (type === 'regular' ? 'background-color:#3b82f6;border-color:#3b82f6;color:#fff;' : 'background-color:#f59e0b;border-color:#f59e0b;color:#fff;') : 'background-color:transparent;color:rgba(255,255,255,0.6);';
+            html += `
+                <li class="page-item ${activeClass}">
+                    <button class="page-link border-secondary" style="${activeStyle}" onclick="changePage('${type}', ${i})">${i}</button>
+                </li>
+            `;
+        }
+        
+        // Next button
+        html += `
+            <li class="page-item ${s.page === totalPages ? 'disabled' : ''}">
+                <button class="page-link bg-dark border-secondary text-secondary" onclick="changePage('${type}', ${s.page + 1})" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </button>
+            </li>
+        `;
+        
+        html += '</ul>';
+        container.innerHTML = html;
+    }
+
+    function changePage(type, pageNum) {
+        const s = state[type];
+        const totalPages = Math.ceil(s.filtered.length / s.limit);
+        if (pageNum < 1 || pageNum > totalPages) return;
+        
+        s.page = pageNum;
+        renderTemplates(type);
+        
+        // Sync Select All state for the new page
+        const selectAllChk = document.getElementById(type === 'regular' ? 'selectAllRegular' : 'selectAllOverride');
+        if (selectAllChk) {
+            const pageItems = getPageItems(type);
+            const allPageChecked = pageItems.length > 0 && pageItems.every(t => selectedIds[type].includes(t.id));
+            selectAllChk.checked = allPageChecked;
         }
     }
 
     function submitTemplateBulkAction(type, action) {
-        const checkboxes = document.querySelectorAll(type === 'regular' ? '.regular-checkbox' : '.override-checkbox');
-        const selectedIds = [];
-        checkboxes.forEach(chk => {
-            if (chk.checked) selectedIds.push(chk.value);
-        });
-        
-        if (selectedIds.length === 0) return;
-        
-        const idsInput = document.getElementById(type === 'regular' ? 'bulkActionRegularIdsInput' : 'bulkActionOverrideIdsInput');
-        const actionInput = document.getElementById(type === 'regular' ? 'bulkActionRegularInput' : 'bulkActionOverrideInput');
-        const form = document.getElementById(type === 'regular' ? 'bulkActionRegularForm' : 'bulkActionOverrideForm');
-        
-        if (idsInput) idsInput.value = selectedIds.join(',');
-        if (actionInput) actionInput.value = action;
+        const ids = selectedIds[type];
+        if (ids.length === 0) return;
         
         if (action === 'delete') {
-            document.getElementById('deleteCountText').innerText = selectedIds.length;
-            document.getElementById('deleteMultipleIdsInput').value = selectedIds.join(',');
+            document.getElementById('deleteCountText').innerText = ids.length;
+            document.getElementById('deleteMultipleIdsInput').value = ids.join(',');
             document.getElementById('deleteMultipleTabInput').value = type;
             new bootstrap.Modal(document.getElementById('deleteMultipleModal')).show();
         } else {
-            if (form) form.submit();
+            const formId = type === 'regular' ? 'bulkActionRegularForm' : 'bulkActionOverrideForm';
+            const idsInputId = type === 'regular' ? 'bulkActionRegularIdsInput' : 'bulkActionOverrideIdsInput';
+            const actionInputId = type === 'regular' ? 'bulkActionRegularInput' : 'bulkActionOverrideInput';
+            
+            document.getElementById(idsInputId).value = ids.join(',');
+            document.getElementById(actionInputId).value = action;
+            document.getElementById(formId).submit();
         }
     }
 
     // Persist active tab across reloads using localStorage
     document.addEventListener("DOMContentLoaded", function() {
-        // Reset all checkboxes on page load to ensure clean state and sync UI
-        try {
-            const regularCheckboxes = document.querySelectorAll('.regular-checkbox');
-            regularCheckboxes.forEach(chk => chk.checked = false);
-            const overrideCheckboxes = document.querySelectorAll('.override-checkbox');
-            overrideCheckboxes.forEach(chk => chk.checked = false);
-            
-            const selectAllRegular = document.getElementById('selectAllRegular');
-            if (selectAllRegular) selectAllRegular.checked = false;
-            const selectAllOverride = document.getElementById('selectAllOverride');
-            if (selectAllOverride) selectAllOverride.checked = false;
-
-            updateSelectedCount('regular');
-            updateSelectedCount('override');
-        } catch (e) {
-            console.error("Failed to reset checkboxes on load:", e);
-        }
+        // Render initial lists
+        renderTemplates('regular');
+        renderTemplates('override');
 
         try {
             const activeTabId = localStorage.getItem("activeTemplateTab");
@@ -488,7 +661,6 @@
             if (overrideUntilRaw.endsWith("Z") || overrideUntilRaw.includes("+")) {
                 date = new Date(overrideUntilRaw);
             } else {
-                // Parse naive string (fallback)
                 date = new Date(overrideUntilRaw + "Z");
             }
             if (!isNaN(date.getTime())) {
@@ -512,7 +684,6 @@
                 date = new Date(rawVal + "Z");
             }
             if (!isNaN(date.getTime())) {
-                // Format in user's locale
                 displayEl.textContent = date.toLocaleString();
             }
         }

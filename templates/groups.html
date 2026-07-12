@@ -88,13 +88,19 @@
                             </form>
                         </div>
                     </div>
+                    <!-- Search Input -->
+                    <div class="mb-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-dark border-secondary text-secondary" style="border-radius: 8px 0 0 8px;"><i class="bi bi-search"></i></span>
+                            <input type="text" id="searchGroups" class="form-control form-control-custom bg-dark border-secondary text-white" placeholder="Cari berdasarkan ID, Title, atau Username..." oninput="handleGroupSearch()" style="border-radius: 0 8px 8px 0;">
+                        </div>
+                    </div>
                     
-                    {% if not groups %}
-                    <div class="text-center py-5 text-secondary">
+                    <div id="emptyGroupsPlaceholder" class="text-center py-5 text-secondary d-none">
                         <i class="bi bi-folder2-open" style="font-size: 3rem;"></i>
                         <p class="mt-3">No target groups found. Add one on the left panel.</p>
                     </div>
-                    {% else %}
+                    
                     <div class="table-responsive">
                         <table class="table table-custom">
                             <thead>
@@ -112,95 +118,14 @@
                                     <th class="text-end">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                {% for g in groups %}
-                                <tr>
-                                    <td>
-                                        <div class="form-check m-0">
-                                            <input class="form-check-input group-checkbox" type="checkbox" value="{{ g.id }}" onchange="updateSelectedGroupsCount()">
-                                        </div>
-                                    </td>
-                                    <td><code>{{ g.id }}</code></td>
-                                    <td>
-                                        <div class="fw-semibold">{{ g.title or 'Unknown Title' }}</div>
-                                        <div class="text-muted small text-truncate" style="max-width: 180px;">{{ g.username }}</div>
-                                        {% if g.last_error %}
-                                        <div class="text-danger small mt-1 text-truncate" style="max-width: 180px;" title="{{ g.last_error }}">
-                                            <i class="bi bi-exclamation-circle me-1"></i>{{ g.last_error }}
-                                        </div>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if g.is_skipped == 1 or g.status == 'SKIPPED' %}
-                                        <span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Skipped</span>
-                                        {% elif g.status == 'ACTIVE' %}
-                                        <span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>
-                                        {% elif g.status == 'FLOOD_WAIT' %}
-                                        <span class="badge-custom badge-flood" title="Cooldown until {{ g.cooldown_until }}"><i class="bi bi-clock-history me-1"></i>Flood</span>
-                                        {% elif g.status == 'UNVERIFIED' %}
-                                        <span class="badge-custom badge-flood"><i class="bi bi-question-circle me-1"></i>Unverified</span>
-                                        {% else %}
-                                        <span class="badge-custom badge-error" title="{{ g.auto_skip_reason or g.last_error }}"><i class="bi bi-exclamation-octagon me-1"></i>{{ g.status }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <span class="{% if g.fail_streak > 0 %}text-danger fw-bold{% else %}text-muted{% endif %}">{{ g.fail_streak }} / 3</span>
-                                    </td>
-                                    <td class="small">
-                                        {% if g.last_success_at %}
-                                        <div class="text-success"><i class="bi bi-check me-1"></i>{{ g.last_success_at.split('T')[0] }}</div>
-                                        <div class="text-muted small">{{ g.last_success_at.split('T')[1][:5] }}</div>
-                                        {% else %}
-                                        <span class="text-muted">Never</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-end">
-                                        <div class="dropdown">
-                                            <button class="btn btn-secondary-custom btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                                Actions
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-dark">
-                                                {% if g.is_skipped == 1 %}
-                                                <li>
-                                                    <form action="/groups/{{ g.id }}/unskip" method="post" class="m-0">
-                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                        <button type="submit" class="dropdown-item text-success"><i class="bi bi-play me-2"></i>Unskip</button>
-                                                    </form>
-                                                </li>
-                                                {% else %}
-                                                <li>
-                                                    <form action="/groups/{{ g.id }}/skip" method="post" class="m-0">
-                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                        <button type="submit" class="dropdown-item text-secondary"><i class="bi bi-skip-end me-2"></i>Skip</button>
-                                                    </form>
-                                                </li>
-                                                {% endif %}
-                                                <li>
-                                                    <form action="/groups/{{ g.id }}/reset" method="post" class="m-0">
-                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                                        <button type="submit" class="dropdown-item text-info"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset Health</button>
-                                                    </form>
-                                                </li>
-                                                <li>
-                                                    <button class="dropdown-item text-warning" onclick="triggerTestModal('{{ g.id }}', '{{ g.title }}')">
-                                                        <i class="bi bi-send me-2"></i>Test Msg
-                                                    </button>
-                                                </li>
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li>
-                                                    <button class="dropdown-item text-danger" onclick="triggerDeleteModal('{{ g.id }}', '{{ g.title }}')">
-                                                        <i class="bi bi-trash me-2"></i>Delete
-                                                    </button>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+                            <tbody id="groupsTableBody">
+                                <!-- Rendered dynamically by JS -->
                             </tbody>
                         </table>
                     </div>
-                    {% endif %}
+                    
+                    <!-- Pagination Controls -->
+                    <div id="groupsPagination" class="d-flex justify-content-center mt-3"></div>
                 </div>
             </div>
         </div>
@@ -324,51 +249,32 @@
 
 {% block scripts %}
 <script>
-    function toggleSelectAllGroups() {
-        const selectAll = document.getElementById("selectAllGroups");
-        const checkboxes = document.querySelectorAll(".group-checkbox");
-        checkboxes.forEach(cb => cb.checked = selectAll.checked);
-        updateSelectedGroupsCount();
-    }
+    // Groups Data loaded from Jinja context
+    const allGroups = {{ groups_json | safe }};
+    const csrfToken = "{{ csrf_token }}";
 
-    function updateSelectedGroupsCount() {
-        const checkboxes = document.querySelectorAll(".group-checkbox:checked");
-        const count = checkboxes.length;
-        
-        const countSpan = document.getElementById("selectedGroupsCount");
-        const container = document.getElementById("bulkActionsContainer");
-        
-        if (countSpan) countSpan.innerText = count;
-        
-        if (container) {
-            if (count > 0) {
-                container.classList.remove("d-none");
-            } else {
-                container.classList.add("d-none");
-                const selectAll = document.getElementById("selectAllGroups");
-                if (selectAll) selectAll.checked = false;
-            }
-        }
-    }
+    // Pagination & Search States
+    const state = {
+        data: allGroups,
+        filtered: allGroups,
+        page: 1,
+        limit: 10, // 10 groups per page
+        search: ""
+    };
 
-    function submitBulkAction(action) {
-        const checkboxes = document.querySelectorAll(".group-checkbox:checked");
-        const selectedIds = Array.from(checkboxes).map(cb => cb.value);
-        if (selectedIds.length === 0) return;
+    // Keep track of checked IDs globally to survive page changes
+    let selectedGroupIds = [];
 
-        document.getElementById("bulkActionIdsInput").value = selectedIds.join(",");
-        document.getElementById("bulkActionInput").value = action;
-
-        if (action === "delete") {
-            document.getElementById("bulkDeleteCountText").innerText = selectedIds.length;
-            new bootstrap.Modal(document.getElementById("bulkDeleteModal")).show();
-        } else {
-            document.getElementById("bulkActionForm").submit();
-        }
-    }
-
-    function executeBulkDelete() {
-        document.getElementById("bulkActionForm").submit();
+    function escapeHtml(text) {
+        if (!text) return "";
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
     }
 
     function triggerTestModal(id, title) {
@@ -387,28 +293,313 @@
         const input = document.getElementById('search_query');
         if (input) {
             input.value = query;
-            // Automatically trigger form submit
             document.getElementById('discoverSearchForm').dispatchEvent(new Event('submit'));
         }
     }
 
-    document.addEventListener("DOMContentLoaded", function() {
-        // Reset all group checkboxes on load to ensure clean sync state
-        try {
-            const checkboxes = document.querySelectorAll(".group-checkbox");
-            checkboxes.forEach(cb => cb.checked = false);
-            const selectAll = document.getElementById("selectAllGroups");
-            if (selectAll) selectAll.checked = false;
-            updateSelectedGroupsCount();
-        } catch (e) {
-            console.error("Failed to reset group checkboxes on load:", e);
+    function handleGroupSearch() {
+        const query = document.getElementById('searchGroups').value.toLowerCase().trim();
+        state.search = query;
+        state.page = 1; // reset page to 1
+        
+        state.filtered = state.data.filter(g => {
+            const title = (g.title || "").toLowerCase();
+            const username = (g.username || "").toLowerCase();
+            const id = g.id.toString();
+            return id.includes(query) || title.includes(query) || username.includes(query);
+        });
+        
+        renderGroups();
+        updateSelectedGroupsCount();
+    }
+
+    function handleGroupCheckboxChange(id, element) {
+        if (element.checked) {
+            if (!selectedGroupIds.includes(id)) {
+                selectedGroupIds.push(id);
+            }
+        } else {
+            selectedGroupIds = selectedGroupIds.filter(item => item !== id);
         }
+        updateSelectedGroupsCount();
+    }
+
+    function toggleSelectAllGroups() {
+        const selectAllChk = document.getElementById("selectAllGroups");
+        const currentFilteredIds = state.filtered.map(g => g.id);
+        
+        if (selectAllChk.checked) {
+            currentFilteredIds.forEach(id => {
+                if (!selectedGroupIds.includes(id)) {
+                    selectedGroupIds.push(id);
+                }
+            });
+        } else {
+            currentFilteredIds.forEach(id => {
+                selectedGroupIds = selectedGroupIds.filter(item => item !== id);
+            });
+        }
+        
+        renderGroups();
+        updateSelectedGroupsCount();
+    }
+
+    function updateSelectedGroupsCount() {
+        const countSpan = document.getElementById("selectedGroupsCount");
+        const container = document.getElementById("bulkActionsContainer");
+        const selectedCount = selectedGroupIds.length;
+        
+        if (countSpan) countSpan.innerText = selectedCount;
+        
+        if (container) {
+            if (selectedCount > 0) {
+                container.classList.remove("d-none");
+            } else {
+                container.classList.add("d-none");
+            }
+        }
+        
+        // Sync Select All checkbox for current page
+        const selectAllChk = document.getElementById("selectAllGroups");
+        if (selectAllChk) {
+            const pageItems = getPageItems();
+            const allPageChecked = pageItems.length > 0 && pageItems.every(g => selectedGroupIds.includes(g.id));
+            selectAllChk.checked = allPageChecked;
+        }
+    }
+
+    function getPageItems() {
+        const start = (state.page - 1) * state.limit;
+        const end = start + state.limit;
+        return state.filtered.slice(start, end);
+    }
+
+    function renderGroups() {
+        const container = document.getElementById("groupsTableBody");
+        const placeholder = document.getElementById("emptyGroupsPlaceholder");
+        const tableContainer = document.querySelector(".table-responsive");
+        
+        if (!container) return;
+        
+        if (state.filtered.length === 0) {
+            if (tableContainer) tableContainer.classList.add("d-none");
+            if (placeholder) placeholder.classList.remove("d-none");
+            const paginationEl = document.getElementById("groupsPagination");
+            if (paginationEl) paginationEl.innerHTML = '';
+            return;
+        }
+        
+        if (tableContainer) tableContainer.classList.remove("d-none");
+        if (placeholder) placeholder.classList.add("d-none");
+
+        const pageItems = getPageItems();
+        let html = '';
+        pageItems.forEach(g => {
+            html += getGroupRowHtml(g);
+        });
+        
+        container.innerHTML = html;
+        renderPagination();
+    }
+
+    function getGroupRowHtml(g) {
+        const isChecked = selectedGroupIds.includes(g.id) ? 'checked' : '';
+        
+        let statusBadge = '';
+        if (g.is_skipped === 1 || g.status === 'SKIPPED') {
+            statusBadge = '<span class="badge-custom badge-skipped"><i class="bi bi-slash-circle me-1"></i>Skipped</span>';
+        } else if (g.status === 'ACTIVE') {
+            statusBadge = '<span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Active</span>';
+        } else if (g.status === 'FLOOD_WAIT') {
+            statusBadge = `<span class="badge-custom badge-flood" title="Cooldown until ${g.cooldown_until || ''}"><i class="bi bi-clock-history me-1"></i>Flood</span>`;
+        } else if (g.status === 'UNVERIFIED') {
+            statusBadge = '<span class="badge-custom badge-flood"><i class="bi bi-question-circle me-1"></i>Unverified</span>';
+        } else {
+            statusBadge = `<span class="badge-custom badge-error" title="${escapeHtml(g.auto_skip_reason || g.last_error || '')}"><i class="bi bi-exclamation-octagon me-1"></i>${escapeHtml(g.status || 'ERROR')}</span>`;
+        }
+
+        const failStreakClass = g.fail_streak > 0 ? 'text-danger fw-bold' : 'text-muted';
+        
+        let lastDeliveryHtml = '<span class="text-muted">Never</span>';
+        if (g.last_success_at) {
+            const parts = g.last_success_at.split('T');
+            const datePart = parts[0];
+            const timePart = parts[1] ? parts[1].substring(0, 5) : '';
+            lastDeliveryHtml = `
+                <div class="text-success"><i class="bi bi-check me-1"></i>${datePart}</div>
+                <div class="text-muted small">${timePart}</div>
+            `;
+        }
+
+        let skipToggleOption = '';
+        if (g.is_skipped === 1) {
+            skipToggleOption = `
+                <li>
+                    <form action="/groups/${g.id}/unskip" method="post" class="m-0">
+                        <input type="hidden" name="csrf_token" value="${csrfToken}">
+                        <button type="submit" class="dropdown-item text-success"><i class="bi bi-play me-2"></i>Unskip</button>
+                    </form>
+                </li>
+            `;
+        } else {
+            skipToggleOption = `
+                <li>
+                    <form action="/groups/${g.id}/skip" method="post" class="m-0">
+                        <input type="hidden" name="csrf_token" value="${csrfToken}">
+                        <button type="submit" class="dropdown-item text-secondary"><i class="bi bi-skip-end me-2"></i>Skip</button>
+                    </form>
+                </li>
+            `;
+        }
+
+        let errorHtml = '';
+        if (g.last_error) {
+            errorHtml = `
+                <div class="text-danger small mt-1 text-truncate" style="max-width: 180px;" title="${escapeHtml(g.last_error)}">
+                    <i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(g.last_error)}
+                </div>
+            `;
+        }
+
+        const escapedTitle = escapeHtml(g.title || 'Unknown Title');
+        const escapedUsername = escapeHtml(g.username || '');
+
+        return `
+            <tr>
+                <td>
+                    <div class="form-check m-0">
+                        <input class="form-check-input group-checkbox" type="checkbox" value="${g.id}" ${isChecked} onchange="handleGroupCheckboxChange(${g.id}, this)">
+                    </div>
+                </td>
+                <td><code>${g.id}</code></td>
+                <td>
+                    <div class="fw-semibold">${escapedTitle}</div>
+                    <div class="text-muted small text-truncate" style="max-width: 180px;">${escapedUsername}</div>
+                    ${errorHtml}
+                </td>
+                <td>${statusBadge}</td>
+                <td>
+                    <span class="${failStreakClass}">${g.fail_streak} / 3</span>
+                </td>
+                <td class="small">${lastDeliveryHtml}</td>
+                <td class="text-end">
+                    <div class="dropdown">
+                        <button class="btn btn-secondary-custom btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Actions
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark">
+                            ${skipToggleOption}
+                            <li>
+                                <form action="/groups/${g.id}/reset" method="post" class="m-0">
+                                    <input type="hidden" name="csrf_token" value="${csrfToken}">
+                                    <button type="submit" class="dropdown-item text-info"><i class="bi bi-arrow-counterclockwise me-2"></i>Reset Health</button>
+                                </form>
+                            </li>
+                            <li>
+                                <button class="dropdown-item text-warning" onclick="triggerTestModal('${g.id}', '${escapedTitle.replace(/'/g, "\\'")}')">
+                                    <i class="bi bi-send me-2"></i>Test Msg
+                                </button>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <button class="dropdown-item text-danger" onclick="triggerDeleteModal('${g.id}', '${escapedTitle.replace(/'/g, "\\'")}')">
+                                    <i class="bi bi-trash me-2"></i>Delete
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+
+    function renderPagination() {
+        const totalPages = Math.ceil(state.filtered.length / state.limit);
+        const container = document.getElementById("groupsPagination");
+        
+        if (!container || totalPages <= 1) {
+            if (container) container.innerHTML = '';
+            return;
+        }
+        
+        let html = '<ul class="pagination pagination-sm m-0">';
+        
+        // Prev button
+        html += `
+            <li class="page-item ${state.page === 1 ? 'disabled' : ''}">
+                <button class="page-link bg-dark border-secondary text-secondary" onclick="changePage(${state.page - 1})" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </button>
+            </li>
+        `;
+        
+        // Page buttons
+        for (let i = 1; i <= totalPages; i++) {
+            const activeClass = state.page === i ? 'active' : '';
+            const activeStyle = state.page === i ? 'background-color:#3b82f6;border-color:#3b82f6;color:#fff;' : 'background-color:transparent;color:rgba(255,255,255,0.6);';
+            html += `
+                <li class="page-item ${activeClass}">
+                    <button class="page-link border-secondary" style="${activeStyle}" onclick="changePage(${i})">${i}</button>
+                </li>
+            `;
+        }
+        
+        // Next button
+        html += `
+            <li class="page-item ${state.page === totalPages ? 'disabled' : ''}">
+                <button class="page-link bg-dark border-secondary text-secondary" onclick="changePage(${state.page + 1})" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </button>
+            </li>
+        `;
+        
+        html += '</ul>';
+        container.innerHTML = html;
+    }
+
+    function changePage(pageNum) {
+        const totalPages = Math.ceil(state.filtered.length / state.limit);
+        if (pageNum < 1 || pageNum > totalPages) return;
+        
+        state.page = pageNum;
+        renderGroups();
+        
+        // Sync Select All state for the new page
+        const selectAllChk = document.getElementById("selectAllGroups");
+        if (selectAllChk) {
+            const pageItems = getPageItems();
+            const allPageChecked = pageItems.length > 0 && pageItems.every(g => selectedGroupIds.includes(g.id));
+            selectAllChk.checked = allPageChecked;
+        }
+    }
+
+    function submitBulkAction(action) {
+        if (selectedGroupIds.length === 0) return;
+
+        document.getElementById("bulkActionIdsInput").value = selectedGroupIds.join(",");
+        document.getElementById("bulkActionInput").value = action;
+
+        if (action === "delete") {
+            document.getElementById("bulkDeleteCountText").innerText = selectedGroupIds.length;
+            new bootstrap.Modal(document.getElementById("bulkDeleteModal")).show();
+        } else {
+            document.getElementById("bulkActionForm").submit();
+        }
+    }
+
+    function executeBulkDelete() {
+        document.getElementById("bulkActionForm").submit();
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        // Render initial list
+        renderGroups();
 
         // Persist active tab across reloads
         const activeTabId = localStorage.getItem("activeGroupTab");
         if (activeTabId) {
             const tabEl = document.querySelector(`#${activeTabId}`);
-            if (tabEl) {
+            if (tabEl && typeof bootstrap !== 'undefined' && bootstrap.Tab) {
                 const tab = new bootstrap.Tab(tabEl);
                 tab.show();
             }
@@ -510,7 +701,6 @@
     });
 
     async function joinAndAdd(username, buttonEl) {
-        // Show spinner in button
         const spinner = buttonEl.querySelector(".spinner-border");
         const icon = buttonEl.querySelector(".bi");
         buttonEl.disabled = true;
@@ -520,9 +710,9 @@
         try {
             const formData = new FormData();
             formData.append("username", username);
-            // Get CSRF Token from the existing hidden input
-            const csrfToken = document.querySelector('input[name="csrf_token"]').value;
-            formData.append("csrf_token", csrfToken);
+            const csrfTokenInput = document.querySelector('input[name="csrf_token"]');
+            const csrfVal = csrfTokenInput ? csrfTokenInput.value : csrfToken;
+            formData.append("csrf_token", csrfVal);
 
             const response = await fetch("/groups/join-and-add", {
                 method: "POST",

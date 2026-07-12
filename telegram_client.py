@@ -61,8 +61,8 @@ def parse_proxy_url(proxy_url: str):
     if not proxy_url:
         return None
     from urllib.parse import urlparse
-    import socks
     try:
+        import socks
         parsed = urlparse(proxy_url)
         scheme = parsed.scheme.lower()
         if scheme == 'socks5':
@@ -82,6 +82,9 @@ def parse_proxy_url(proxy_url: str):
             parsed.username,
             parsed.password
         )
+    except ImportError:
+        logger.error("PySocks module is not installed. Please run 'pip install PySocks' to enable proxy support.")
+        raise RuntimeError("Library 'PySocks' tidak terinstal di server. Silakan jalankan 'pip install PySocks' di VPS Anda.")
     except Exception as e:
         logger.error(f"Error parsing proxy URL '{proxy_url}': {e}")
         return None
@@ -179,8 +182,12 @@ async def start_all_clients() -> list[TelegramClient]:
     
     active_clients = []
     for name in session_names:
-        client = get_client(name)
+        if not is_session_active(name):
+            logger.info(f"Client '{name}' is deactivated in database. Skipping connection.")
+            continue
+            
         try:
+            client = get_client(name)
             logger.info(f"Connecting client for session: {name}...")
             await client.connect()
             if not await client.is_user_authorized():
@@ -191,12 +198,7 @@ async def start_all_clients() -> list[TelegramClient]:
             logger.info(f"Client '{name}' successfully authorized as {me.first_name} (@{me.username or 'NoUsername'})")
             # Cache dialogs for entity resolution
             await client.get_dialogs()
-            
-            # Only return active/enabled clients for task runners and command routers
-            if is_session_active(name):
-                active_clients.append(client)
-            else:
-                logger.info(f"Client '{name}' is deactivated in database. Skipping from active list.")
+            active_clients.append(client)
         except Exception as e:
             logger.error(f"Failed to start client for session '{name}': {e}")
             

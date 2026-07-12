@@ -270,11 +270,14 @@ async def action_wave(request: Request):
 @app.get("/groups")
 async def get_groups(request: Request):
     groups_list = await group_svc.get_all_groups()
+    import json
+    groups_json = json.dumps(groups_list).replace("</", "<\\/")
     context = {
         "request": request,
         "is_logged_in": True,
         "active_page": "groups",
         "groups": groups_list,
+        "groups_json": groups_json,
         **get_flash_context(request)
     }
     return templates.TemplateResponse(request, "groups.html", context)
@@ -523,12 +526,18 @@ async def get_templates(request: Request):
     # Get active tab from query params
     active_tab = request.query_params.get("tab", "regular")
 
+    import json
+    templates_json = json.dumps(templates_list).replace("</", "<\\/")
+    override_templates_json = json.dumps(override_templates).replace("</", "<\\/")
+
     context = {
         "request": request,
         "is_logged_in": True,
         "active_page": "templates",
         "templates": templates_list,
+        "templates_json": templates_json,
         "override_templates": override_templates,
+        "override_templates_json": override_templates_json,
         "override_active": override_active,
         "override_until": override_until,
         "is_currently_overridden": is_currently_overridden,
@@ -874,13 +883,19 @@ async def get_logs(request: Request, wave_id: Optional[int] = None):
     if selected_wave_id:
         items = await db.fetchall("SELECT * FROM wave_log_items WHERE wave_log_id = ? ORDER BY id ASC", (selected_wave_id,))
         
+    import json
+    waves_json = json.dumps(waves).replace("</", "<\\/")
+    items_json = json.dumps(items).replace("</", "<\\/")
+    
     context = {
         "request": request,
         "is_logged_in": True,
         "active_page": "logs",
         "waves": waves,
+        "waves_json": waves_json,
         "selected_wave_id": selected_wave_id,
         "items": items,
+        "items_json": items_json,
         **get_flash_context(request)
     }
     return templates.TemplateResponse(request, "logs.html", context)
@@ -1038,22 +1053,30 @@ async def get_sessions(request: Request):
     
     sessions_data = []
     for name in session_files:
-        client = telegram_client.get_client(name)
+        client = None
+        client_error = None
+        try:
+            client = telegram_client.get_client(name)
+        except Exception as e:
+            logger.error(f"Failed to load client '{name}': {e}", exc_info=True)
+            client_error = str(e)
+            
         is_default = (name == default_stem)
-        
         authorized = False
         user_details = None
-        try:
-            # Check authorization state
-            if client.is_connected() and await client.is_user_authorized():
-                authorized = True
-                me = await client.get_me()
-                user_details = {
-                    "first_name": me.first_name,
-                    "username": me.username
-                }
-        except Exception:
-            pass
+        
+        if client and not client_error:
+            try:
+                # Check authorization state
+                if client.is_connected() and await client.is_user_authorized():
+                    authorized = True
+                    me = await client.get_me()
+                    user_details = {
+                        "first_name": me.first_name,
+                        "username": me.username
+                    }
+            except Exception:
+                pass
             
         proxy_row = await db.fetchone(
             "SELECT proxy_url, is_active, last_status, last_status_detail, last_status_checked_at FROM session_proxies WHERE session_name = ?",
@@ -1061,9 +1084,15 @@ async def get_sessions(request: Request):
         )
         proxy_str = proxy_row["proxy_url"] if proxy_row else None
         is_active = proxy_row["is_active"] != 0 if proxy_row and proxy_row["is_active"] is not None else True
-        last_status = proxy_row["last_status"] if proxy_row and proxy_row["last_status"] else "UNKNOWN"
-        last_status_detail = proxy_row["last_status_detail"] if proxy_row and proxy_row["last_status_detail"] else ""
-        last_status_checked_at = proxy_row["last_status_checked_at"] if proxy_row and proxy_row["last_status_checked_at"] else ""
+        
+        if client_error:
+            last_status = "ERROR"
+            last_status_detail = f"Gagal memuat client: {client_error}"
+            last_status_checked_at = datetime.now().isoformat()
+        else:
+            last_status = proxy_row["last_status"] if proxy_row and proxy_row["last_status"] else "UNKNOWN"
+            last_status_detail = proxy_row["last_status_detail"] if proxy_row and proxy_row["last_status_detail"] else ""
+            last_status_checked_at = proxy_row["last_status_checked_at"] if proxy_row and proxy_row["last_status_checked_at"] else ""
             
         sessions_data.append({
             "name": name,
@@ -1386,6 +1415,18 @@ async def post_toggle_active(
                     logger.info(f"Registered command handlers for '{session_name}' on activation.")
             except Exception as e:
                 logger.error(f"Failed to register command handlers for '{session_name}' on activation: {e}")
+        else:
+            # If deactivated, disconnect the client and remove from cache immediately
+            clients_dict = telegram_client.get_clients_dict()
+            if session_name in clients_dict:
+                client_obj = clients_dict[session_name]
+                try:
+                    if client_obj.is_connected():
+                        await client_obj.disconnect()
+                        logger.info(f"Disconnected client '{session_name}' on deactivation.")
+                except Exception as disconnect_err:
+                    logger.error(f"Failed to disconnect '{session_name}' on deactivation: {disconnect_err}")
+                clients_dict.pop(session_name, None)
                 
         request.session["flash_success"] = f"Bot session '{session_name}' berhasil {status_text}."
     except Exception as e:

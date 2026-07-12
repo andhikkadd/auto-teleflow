@@ -52,17 +52,24 @@
                 <p class="mt-3">Select an execution campaign from the left panel to display delivery details.</p>
             </div>
             {% else %}
-            <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom border-secondary">
+            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom border-secondary">
                 <h5 class="fw-bold m-0"><i class="bi bi-list-task text-primary me-2"></i>Details for Wave #{{ selected_wave_id }}</h5>
                 <span class="badge-custom badge-active">ID: {{ selected_wave_id }}</span>
             </div>
 
-            {% if not items %}
-            <div class="text-center py-5 text-secondary">
-                <i class="bi bi-dash-circle" style="font-size: 2.5rem;"></i>
-                <p class="mt-2">No individual group dispatch logs found for this wave.</p>
+            <!-- Search Input for Items -->
+            <div class="mb-3">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-dark border-secondary text-secondary" style="border-radius: 8px 0 0 8px;"><i class="bi bi-search"></i></span>
+                    <input type="text" id="searchItems" class="form-control form-control-custom bg-dark border-secondary text-white" placeholder="Cari berdasarkan Group ID, Title, Status, atau Error..." oninput="handleItemSearch()" style="border-radius: 0 8px 8px 0;">
+                </div>
             </div>
-            {% else %}
+
+            <div id="emptyItemsPlaceholder" class="text-center py-5 text-secondary d-none">
+                <i class="bi bi-dash-circle" style="font-size: 2.5rem;"></i>
+                <p class="mt-2">Tidak ada log pengiriman yang ditemukan.</p>
+            </div>
+
             <div class="table-responsive">
                 <table class="table table-custom m-0">
                     <thead>
@@ -72,38 +79,179 @@
                             <th>Info / Error Message</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% for item in items %}
-                        <tr>
-                            <td>
-                                <div class="fw-semibold small">{{ item.group_title }}</div>
-                                <div class="text-muted small">ID: {{ item.group_id }}</div>
-                            </td>
-                            <td>
-                                {% if item.status == 'success' %}
-                                <span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Success</span>
-                                {% elif item.status == 'unverified' %}
-                                <span class="badge-custom badge-flood"><i class="bi bi-question-circle me-1"></i>Unverified</span>
-                                {% else %}
-                                <span class="badge-custom badge-error"><i class="bi bi-exclamation-octagon me-1"></i>Failed</span>
-                                {% endif %}
-                            </td>
-                            <td class="small">
-                                {% if item.status == 'success' or item.status == 'unverified' %}
-                                <span class="text-secondary">Message ID: <code>{{ item.message_id }}</code></span>
-                                {% else %}
-                                <span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>{{ item.error_message }}</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
+                    <tbody id="itemsTableBody">
+                        <!-- Rendered dynamically by JS -->
                     </tbody>
                 </table>
             </div>
-            {% endif %}
-            
+
+            <!-- Pagination Controls -->
+            <div id="itemsPagination" class="d-flex justify-content-center mt-3"></div>
             {% endif %}
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const allItems = {{ items_json | safe if items_json else '[]' }};
+    
+    const state = {
+        data: allItems,
+        filtered: allItems,
+        page: 1,
+        limit: 10 // 10 items per page
+    };
+
+    function escapeHtml(text) {
+        if (!text) return "";
+        const map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    function handleItemSearch() {
+        const query = document.getElementById('searchItems').value.toLowerCase().trim();
+        state.page = 1; // reset page to 1
+        
+        state.filtered = state.data.filter(item => {
+            const groupTitle = (item.group_title || "").toLowerCase();
+            const groupId = (item.group_id || "").toString();
+            const status = (item.status || "").toLowerCase();
+            const errMsg = (item.error_message || "").toLowerCase();
+            
+            return groupTitle.includes(query) || 
+                   groupId.includes(query) || 
+                   status.includes(query) || 
+                   errMsg.includes(query);
+        });
+        
+        renderItems();
+    }
+
+    function getPageItems() {
+        const start = (state.page - 1) * state.limit;
+        const end = start + state.limit;
+        return state.filtered.slice(start, end);
+    }
+
+    function renderItems() {
+        const container = document.getElementById("itemsTableBody");
+        const placeholder = document.getElementById("emptyItemsPlaceholder");
+        const tableContainer = document.querySelector(".table-responsive");
+        
+        if (!container) return;
+        
+        if (state.filtered.length === 0) {
+            if (tableContainer) tableContainer.classList.add("d-none");
+            if (placeholder) placeholder.classList.remove("d-none");
+            const paginationEl = document.getElementById("itemsPagination");
+            if (paginationEl) paginationEl.innerHTML = '';
+            return;
+        }
+        
+        if (tableContainer) tableContainer.classList.remove("d-none");
+        if (placeholder) placeholder.classList.add("d-none");
+
+        const pageItems = getPageItems();
+        let html = '';
+        pageItems.forEach(item => {
+            html += getItemRowHtml(item);
+        });
+        
+        container.innerHTML = html;
+        renderPagination();
+    }
+
+    function getItemRowHtml(item) {
+        let statusBadge = '';
+        if (item.status === 'success') {
+            statusBadge = '<span class="badge-custom badge-active"><i class="bi bi-check-circle-fill me-1"></i>Success</span>';
+        } else if (item.status === 'unverified') {
+            statusBadge = '<span class="badge-custom badge-flood"><i class="bi bi-question-circle me-1"></i>Unverified</span>';
+        } else {
+            statusBadge = '<span class="badge-custom badge-error"><i class="bi bi-exclamation-octagon me-1"></i>Failed</span>';
+        }
+
+        let infoHtml = '';
+        if (item.status === 'success' || item.status === 'unverified') {
+            infoHtml = `<span class="text-secondary">Message ID: <code>${escapeHtml(item.message_id || '')}</code></span>`;
+        } else {
+            infoHtml = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>${escapeHtml(item.error_message || 'Error')}</span>`;
+        }
+
+        return `
+            <tr>
+                <td>
+                    <div class="fw-semibold small">${escapeHtml(item.group_title || 'Unknown Group')}</div>
+                    <div class="text-muted small">ID: ${item.group_id}</div>
+                </td>
+                <td>${statusBadge}</td>
+                <td class="small">${infoHtml}</td>
+            </tr>
+        `;
+    }
+
+    function renderPagination() {
+        const totalPages = Math.ceil(state.filtered.length / state.limit);
+        const container = document.getElementById("itemsPagination");
+        
+        if (!container || totalPages <= 1) {
+            if (container) container.innerHTML = '';
+            return;
+        }
+        
+        let html = '<ul class="pagination pagination-sm m-0">';
+        
+        // Prev button
+        html += `
+            <li class="page-item ${state.page === 1 ? 'disabled' : ''}">
+                <button class="page-link bg-dark border-secondary text-secondary" onclick="changePage(${state.page - 1})" aria-label="Previous">
+                    <span aria-hidden="true">&laquo;</span>
+                </button>
+            </li>
+        `;
+        
+        // Page buttons
+        for (let i = 1; i <= totalPages; i++) {
+            const activeClass = state.page === i ? 'active' : '';
+            const activeStyle = state.page === i ? 'background-color:#3b82f6;border-color:#3b82f6;color:#fff;' : 'background-color:transparent;color:rgba(255,255,255,0.6);';
+            html += `
+                <li class="page-item ${activeClass}">
+                    <button class="page-link border-secondary" style="${activeStyle}" onclick="changePage(${i})">${i}</button>
+                </li>
+            `;
+        }
+        
+        // Next button
+        html += `
+            <li class="page-item ${state.page === totalPages ? 'disabled' : ''}">
+                <button class="page-link bg-dark border-secondary text-secondary" onclick="changePage(${state.page + 1})" aria-label="Next">
+                    <span aria-hidden="true">&raquo;</span>
+                </button>
+            </li>
+        `;
+        
+        html += '</ul>';
+        container.innerHTML = html;
+    }
+
+    function changePage(pageNum) {
+        const totalPages = Math.ceil(state.filtered.length / state.limit);
+        if (pageNum < 1 || pageNum > totalPages) return;
+        
+        state.page = pageNum;
+        renderItems();
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        renderItems();
+    });
+</script>
 {% endblock %}
