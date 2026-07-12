@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import RedirectResponse, JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 from pathlib import Path
+import os
 
 import config
 from database import db
