@@ -90,7 +90,11 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if sess.authorized %}
+                                    {% if not sess.is_active %}
+                                    <span class="badge status-badge bg-secondary mb-1 d-inline-block">
+                                        <i class="bi bi-power me-1"></i> Nonaktif
+                                    </span>
+                                    {% elif sess.authorized %}
                                     <span class="badge status-badge bg-neon-success mb-1 d-inline-block">
                                         <i class="bi bi-check-circle-fill me-1"></i> Terkoneksi
                                     </span>
@@ -130,7 +134,6 @@
                                         {% endif %}
                                     </div>
 
-                                    {% if sess.authorized %}
                                     <form action="/sessions/toggle-active" method="post" class="m-0 mt-2">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <input type="hidden" name="session_name" value="{{ sess.name }}">
@@ -146,10 +149,9 @@
                                             </label>
                                         </div>
                                     </form>
-                                    {% endif %}
                                 </td>
                                 <td>
-                                    {% if sess.authorized and sess.user_details %}
+                                    {% if sess.user_details %}
                                     <span class="text-info fw-bold">{{ sess.user_details.first_name }}</span>
                                     {% if sess.user_details.username %}
                                     <small class="text-secondary font-monospace d-block">@{{ sess.user_details.username

@@ -212,7 +212,9 @@ class Database:
             "is_active": "INTEGER DEFAULT 1",
             "last_status": "TEXT DEFAULT 'UNKNOWN'",
             "last_status_detail": "TEXT",
-            "last_status_checked_at": "TEXT"
+            "last_status_checked_at": "TEXT",
+            "first_name": "TEXT",
+            "username": "TEXT"
         }
 
         try:

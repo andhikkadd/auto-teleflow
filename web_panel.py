@@ -1079,12 +1079,18 @@ async def get_sessions(request: Request):
                 pass
             
         proxy_row = await db.fetchone(
-            "SELECT proxy_url, is_active, last_status, last_status_detail, last_status_checked_at FROM session_proxies WHERE session_name = ?",
+            "SELECT proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username FROM session_proxies WHERE session_name = ?",
             (name,)
         )
         proxy_str = proxy_row["proxy_url"] if proxy_row else None
         is_active = proxy_row["is_active"] != 0 if proxy_row and proxy_row["is_active"] is not None else True
         
+        if not user_details and proxy_row and (proxy_row["first_name"] or proxy_row["username"]):
+            user_details = {
+                "first_name": proxy_row["first_name"],
+                "username": proxy_row["username"]
+            }
+            
         if client_error:
             last_status = "ERROR"
             last_status_detail = f"Gagal memuat client: {client_error}"
@@ -1131,15 +1137,17 @@ async def post_check_session_status(request: Request, session_name: str):
         authorized = await client.is_user_authorized()
         if not authorized:
             now_str = state.get_target_now().isoformat()
-            row = await db.fetchone("SELECT proxy_url, is_active FROM session_proxies WHERE session_name = ?", (session_name,))
+            row = await db.fetchone("SELECT proxy_url, is_active, first_name, username FROM session_proxies WHERE session_name = ?", (session_name,))
             proxy_url = row["proxy_url"] if row else None
             is_active = row["is_active"] if row else 1
+            first_name = row["first_name"] if row else None
+            username = row["username"] if row else None
             
             await db.execute("""
                 INSERT OR REPLACE INTO session_proxies 
-                (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (session_name, proxy_url, is_active, "LOGGED_OUT", "Akun ter-logout / session tidak valid.", now_str, now_str))
+                (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (session_name, proxy_url, is_active, "LOGGED_OUT", "Akun ter-logout / session tidak valid.", now_str, first_name, username, now_str))
             
             return JSONResponse({
                 "status": "LOGGED_OUT",
@@ -1196,9 +1204,9 @@ async def post_check_session_status(request: Request, session_name: str):
         
         await db.execute("""
             INSERT OR REPLACE INTO session_proxies 
-            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (session_name, proxy_url, is_active, status, detail, now_str, now_str))
+            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_name, proxy_url, is_active, status, detail, now_str, me.first_name, me.username, now_str))
         
         return JSONResponse({
             "status": status,
@@ -1218,15 +1226,17 @@ async def post_check_session_status(request: Request, session_name: str):
             detail = f"Gagal mengecek status: {error_msg}"
             
         now_str = state.get_target_now().isoformat()
-        row = await db.fetchone("SELECT proxy_url, is_active FROM session_proxies WHERE session_name = ?", (session_name,))
+        row = await db.fetchone("SELECT proxy_url, is_active, first_name, username FROM session_proxies WHERE session_name = ?", (session_name,))
         proxy_url = row["proxy_url"] if row else None
         is_active = row["is_active"] if row else 1
+        first_name = row["first_name"] if row else None
+        username = row["username"] if row else None
         
         await db.execute("""
             INSERT OR REPLACE INTO session_proxies 
-            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (session_name, proxy_url, is_active, status, detail, now_str, now_str))
+            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_name, proxy_url, is_active, status, detail, now_str, first_name, username, now_str))
         
         return JSONResponse({"status": status, "message": detail, "checked_at": now_str})
 
@@ -1322,6 +1332,19 @@ async def post_submit_otp(
         # Cache dialogs
         await client.get_dialogs()
         
+        # Fetch profile and cache details in database
+        try:
+            me = await client.get_me()
+            safe_name = phone.replace("+", "")
+            now_str = state.get_target_now().isoformat()
+            await db.execute("""
+                INSERT OR REPLACE INTO session_proxies 
+                (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (safe_name, "", 1, "NORMAL", "Akun normal (tidak ada batasan dari @SpamBot).", now_str, me.first_name, me.username, now_str))
+        except Exception as me_err:
+            logger.error(f"Failed to cache profile details on login: {me_err}")
+            
         # Register command handlers for the new client
         import commands
         await commands.register_handlers([client])
@@ -1348,20 +1371,30 @@ async def post_set_proxy(
         
     proxy_url = proxy_url.strip()
     try:
-        if not proxy_url:
-            await db.execute("DELETE FROM session_proxies WHERE session_name = ?", (session_name,))
-            request.session["flash_success"] = f"Proxy cleared for session '{session_name}'."
-        else:
+        if proxy_url:
             from urllib.parse import urlparse
             parsed = urlparse(proxy_url)
             if parsed.scheme.lower() not in ('socks5', 'socks4', 'http', 'https') or not parsed.hostname:
                 raise ValueError("Invalid proxy format. Must be like: socks5://user:pass@host:port or http://host:port")
                 
-            now_str = state.get_target_now().isoformat()
-            await db.execute(
-                "INSERT OR REPLACE INTO session_proxies (session_name, proxy_url, updated_at) VALUES (?, ?, ?)",
-                (session_name, proxy_url, now_str)
-            )
+        now_str = state.get_target_now().isoformat()
+        row = await db.fetchone("SELECT is_active, last_status, last_status_detail, last_status_checked_at, first_name, username FROM session_proxies WHERE session_name = ?", (session_name,))
+        is_active = row["is_active"] if row and row["is_active"] is not None else 1
+        last_status = row["last_status"] if row and row["last_status"] else "UNKNOWN"
+        last_status_detail = row["last_status_detail"] if row and row["last_status_detail"] else ""
+        last_status_checked_at = row["last_status_checked_at"] if row and row["last_status_checked_at"] else ""
+        first_name = row["first_name"] if row else None
+        username = row["username"] if row else None
+
+        await db.execute("""
+            INSERT OR REPLACE INTO session_proxies 
+            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_name, proxy_url or None, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, now_str))
+
+        if not proxy_url:
+            request.session["flash_success"] = f"Proxy cleared for session '{session_name}'."
+        else:
             request.session["flash_success"] = f"Proxy successfully updated for session '{session_name}'."
 
         # Evict and disconnect client from cache to force recreation on next use
@@ -1391,14 +1424,20 @@ async def post_toggle_active(
         
     try:
         now_str = state.get_target_now().isoformat()
-        # Find if row exists to keep proxy_url
-        row = await db.fetchone("SELECT proxy_url FROM session_proxies WHERE session_name = ?", (session_name,))
-        proxy_url = row["proxy_url"] if row else ""
+        # Find if row exists to keep other fields
+        row = await db.fetchone("SELECT proxy_url, last_status, last_status_detail, last_status_checked_at, first_name, username FROM session_proxies WHERE session_name = ?", (session_name,))
+        proxy_url = row["proxy_url"] if row else None
+        last_status = row["last_status"] if row and row["last_status"] else "UNKNOWN"
+        last_status_detail = row["last_status_detail"] if row and row["last_status_detail"] else ""
+        last_status_checked_at = row["last_status_checked_at"] if row and row["last_status_checked_at"] else ""
+        first_name = row["first_name"] if row else None
+        username = row["username"] if row else None
         
         await db.execute("""
-            INSERT OR REPLACE INTO session_proxies (session_name, proxy_url, is_active, updated_at)
-            VALUES (?, ?, ?, ?)
-        """, (session_name, proxy_url, is_active, now_str))
+            INSERT OR REPLACE INTO session_proxies 
+            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, now_str))
         
         status_text = "diaktifkan" if is_active == 1 else "dinonaktifkan"
         
