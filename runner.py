@@ -48,6 +48,18 @@ async def run_app(path, name):
         await asyncio.sleep(3)
 
 async def main():
+    # Auto-install requirements in the container environment if needed
+    try:
+        import python_socks
+    except ImportError:
+        print("\n[runner] Installing required dependency: python-socks...", flush=True)
+        import subprocess
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "python-socks"])
+            print("[runner] python-socks successfully installed!\n", flush=True)
+        except Exception as pip_err:
+            print(f"[runner] Warning: Failed to auto-install python-socks: {pip_err}\n", flush=True)
+
     # Fetch and print the actual public IP of the VPS Node
     import urllib.request
     try:
