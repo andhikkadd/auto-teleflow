@@ -1062,12 +1062,28 @@ async def get_sessions(request: Request):
             client_error = str(e)
             
         is_default = (name == default_stem)
+        
+        # 1. Fetch database configuration first
+        proxy_row = await db.fetchone(
+            "SELECT proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username FROM session_proxies WHERE session_name = ?",
+            (name,)
+        )
+        proxy_str = proxy_row["proxy_url"] if proxy_row else None
+        is_active = proxy_row["is_active"] != 0 if proxy_row and proxy_row["is_active"] is not None else True
+        
         authorized = False
         user_details = None
         
         if client and not client_error:
             try:
-                # Check authorization state
+                # 2. If active but disconnected (e.g. proxy changed), connect it now
+                if is_active and not client.is_connected():
+                    try:
+                        await client.connect()
+                    except Exception as conn_err:
+                        logger.warning(f"Failed to auto-connect active client '{name}' in get_sessions: {conn_err}")
+
+                # 3. Check authorization state
                 if client.is_connected() and await client.is_user_authorized():
                     authorized = True
                     me = await client.get_me()
@@ -1078,13 +1094,6 @@ async def get_sessions(request: Request):
             except Exception:
                 pass
             
-        proxy_row = await db.fetchone(
-            "SELECT proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username FROM session_proxies WHERE session_name = ?",
-            (name,)
-        )
-        proxy_str = proxy_row["proxy_url"] if proxy_row else None
-        is_active = proxy_row["is_active"] != 0 if proxy_row and proxy_row["is_active"] is not None else True
-        
         if not user_details and proxy_row and (proxy_row["first_name"] or proxy_row["username"]):
             user_details = {
                 "first_name": proxy_row["first_name"],
