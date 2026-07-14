@@ -1077,14 +1077,7 @@ async def get_sessions(request: Request):
         
         if client and not client_error:
             try:
-                # 2. If active but disconnected (e.g. proxy changed), connect it now
-                if is_active and not client.is_connected():
-                    try:
-                        await client.connect()
-                    except Exception as conn_err:
-                        logger.warning(f"Failed to auto-connect active client '{name}' in get_sessions: {conn_err}")
-
-                # 3. Check authorization state
+                # 3. Check authorization state only if already connected
                 if client.is_connected() and await client.is_user_authorized():
                     authorized = True
                     me = await client.get_me()
