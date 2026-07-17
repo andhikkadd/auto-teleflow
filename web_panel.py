@@ -1243,6 +1243,278 @@ async def post_check_session_status(request: Request, session_name: str):
         
         return JSONResponse({"status": status, "message": detail, "checked_at": now_str})
 
+@app.get("/sessions/{session_name}/otp")
+async def get_session_otp(request: Request, session_name: str):
+    if not request.session.get("logged_in"):
+        return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
+        
+    try:
+        client = telegram_client.get_client(session_name)
+        if not client.is_connected():
+            await client.connect()
+            
+        if not await client.is_user_authorized():
+            return JSONResponse({"status": "error", "message": "Akun tidak terautentikasi (Logged Out)."}, status_code=400)
+            
+        otp_messages = []
+        import re
+        
+        # Try to get messages from 777000 (Telegram service notifications)
+        try:
+            # Telethon allows fetching by integer ID 777000 directly
+            messages = await client.get_messages(777000, limit=10)
+            for msg in messages:
+                if msg and msg.text:
+                    code_match = re.search(r'\b\d{5}\b', msg.text)
+                    code = code_match.group(0) if code_match else None
+                    otp_messages.append({
+                        "id": msg.id,
+                        "date": msg.date.isoformat() if msg.date else None,
+                        "text": msg.text,
+                        "code": code
+                    })
+        except Exception as e:
+            logger.warning(f"Failed to fetch from 777000 directly: {e}")
+            
+        # Fallback/Supplemental: check recent dialogs for Telegram official chat
+        if not otp_messages:
+            try:
+                async for dialog in client.iter_dialogs(limit=15):
+                    if dialog.entity.id == 777000 or getattr(dialog.entity, 'username', '') == 'Telegram':
+                        messages = await client.get_messages(dialog.entity, limit=10)
+                        for msg in messages:
+                            if msg and msg.text:
+                                code_match = re.search(r'\b\d{5}\b', msg.text)
+                                code = code_match.group(0) if code_match else None
+                                otp_messages.append({
+                                    "id": msg.id,
+                                    "date": msg.date.isoformat() if msg.date else None,
+                                    "text": msg.text,
+                                    "code": code
+                                })
+                        break
+            except Exception as e2:
+                logger.error(f"Fallback check for 777000 failed: {e2}")
+
+        # If still empty, check the first 5 dialogs' recent messages just in case they came from elsewhere
+        if not otp_messages:
+            try:
+                async for dialog in client.iter_dialogs(limit=5):
+                    messages = await client.get_messages(dialog.entity, limit=3)
+                    for msg in messages:
+                        if msg and msg.text and ("code" in msg.text.lower() or "kode" in msg.text.lower()):
+                            code_match = re.search(r'\b\d{5}\b', msg.text)
+                            code = code_match.group(0) if code_match else None
+                            sender_title = getattr(dialog.entity, 'title', '') or getattr(dialog.entity, 'first_name', '') or 'Unknown'
+                            otp_messages.append({
+                                "id": msg.id,
+                                "date": msg.date.isoformat() if msg.date else None,
+                                "text": f"[{sender_title}] {msg.text}",
+                                "code": code
+                            })
+            except Exception as e3:
+                logger.error(f"Broad inbox scan failed: {e3}")
+                
+        return JSONResponse({
+            "status": "success",
+            "session_name": session_name,
+            "messages": otp_messages
+        })
+    except Exception as e:
+        logger.error(f"Failed to get OTP for session {session_name}: {e}", exc_info=True)
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+@app.get("/sessions/{session_name}/profile")
+async def get_session_profile(request: Request, session_name: str):
+    if not request.session.get("logged_in"):
+        return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
+        
+    try:
+        client = telegram_client.get_client(session_name)
+        if not client.is_connected():
+            await client.connect()
+            
+        if not await client.is_user_authorized():
+            return JSONResponse({"status": "error", "message": "Akun tidak terautentikasi (Logged Out)."}, status_code=400)
+            
+        me = await client.get_me()
+        
+        # Get full user info (which contains the bio / 'about')
+        from telethon.tl.functions.users import GetFullUserRequest
+        full_user = await client(GetFullUserRequest(me))
+        about = getattr(full_user.full_user, 'about', '') or ''
+        
+        return JSONResponse({
+            "status": "success",
+            "profile": {
+                "first_name": me.first_name or "",
+                "last_name": me.last_name or "",
+                "username": me.username or "",
+                "phone": me.phone or "",
+                "about": about
+            }
+        })
+    except Exception as e:
+        logger.error(f"Failed to get profile for session {session_name}: {e}", exc_info=True)
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+@app.post("/sessions/{session_name}/profile")
+async def post_session_profile(
+    request: Request,
+    session_name: str,
+    first_name: str = Form(...),
+    last_name: str = Form(""),
+    about: str = Form(""),
+    username: str = Form("")
+):
+    if not request.session.get("logged_in"):
+        return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
+        
+    try:
+        client = telegram_client.get_client(session_name)
+        if not client.is_connected():
+            await client.connect()
+            
+        if not await client.is_user_authorized():
+            return JSONResponse({"status": "error", "message": "Akun tidak terautentikasi (Logged Out)."}, status_code=400)
+            
+        # Update name & bio
+        from telethon.tl.functions.account import UpdateProfileRequest
+        await client(UpdateProfileRequest(
+            first_name=first_name.strip(),
+            last_name=last_name.strip(),
+            about=about.strip()
+        ))
+        
+        # Update username if it has changed
+        me = await client.get_me()
+        current_username = me.username or ""
+        target_username = username.strip().replace("@", "")
+        
+        username_updated = False
+        if target_username != current_username:
+            from telethon.tl.functions.account import UpdateUsernameRequest
+            from telethon.errors import UsernameInvalidError, UsernameOccupiedError, UsernameNotModifiedError
+            try:
+                await client(UpdateUsernameRequest(username=target_username))
+                username_updated = True
+            except UsernameNotModifiedError:
+                pass
+            except UsernameOccupiedError:
+                return JSONResponse({"status": "error", "message": f"Username @{target_username} sudah digunakan oleh orang lain."}, status_code=400)
+            except UsernameInvalidError:
+                return JSONResponse({"status": "error", "message": "Format username tidak valid. Minimal 5 karakter, a-z, 0-9, dan underscore."}, status_code=400)
+                
+        # Update database cache
+        updated_me = await client.get_me()
+        now_str = state.get_target_now().isoformat()
+        row = await db.fetchone("SELECT proxy_url, is_active, last_status, last_status_detail, last_status_checked_at FROM session_proxies WHERE session_name = ?", (session_name,))
+        proxy_url = row["proxy_url"] if row else None
+        is_active = row["is_active"] if row else 1
+        last_status = row["last_status"] if row and row["last_status"] else "NORMAL"
+        last_status_detail = row["last_status_detail"] if row and row["last_status_detail"] else ""
+        last_status_checked_at = row["last_status_checked_at"] if row and row["last_status_checked_at"] else ""
+        
+        await db.execute("""
+            INSERT OR REPLACE INTO session_proxies 
+            (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, first_name, username, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_name, proxy_url, is_active, last_status, last_status_detail, last_status_checked_at, updated_me.first_name, updated_me.username, now_str))
+        
+        msg = "Profil berhasil diperbarui!"
+        if username_updated:
+            msg += f" Username diubah menjadi @{updated_me.username}."
+        elif target_username != current_username and not target_username:
+            msg += " Username dihapus."
+            
+        return JSONResponse({"status": "success", "message": msg})
+    except Exception as e:
+        logger.error(f"Failed to update profile for session {session_name}: {e}", exc_info=True)
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+@app.post("/sessions/{session_name}/join-group")
+async def post_session_join_group(
+    request: Request,
+    session_name: str,
+    group_ref: str = Form(...),
+    add_to_targets: int = Form(0)
+):
+    if not request.session.get("logged_in"):
+        return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=401)
+        
+    group_ref = group_ref.strip()
+    if not group_ref:
+        return JSONResponse({"status": "error", "message": "Username atau link grup tidak boleh kosong."}, status_code=400)
+        
+    try:
+        client = telegram_client.get_client(session_name)
+        if not client.is_connected():
+            await client.connect()
+            
+        if not await client.is_user_authorized():
+            return JSONResponse({"status": "error", "message": "Akun tidak terautentikasi (Logged Out)."}, status_code=400)
+            
+        clean_target = clean_username_input(group_ref)
+        if not clean_target:
+            return JSONResponse({"status": "error", "message": "Format username atau link grup tidak valid."}, status_code=400)
+            
+        invite_hash = None
+        if clean_target.startswith("joinchat/"):
+            invite_hash = clean_target.split("/")[-1]
+        elif clean_target.startswith("+"):
+            invite_hash = clean_target[1:]
+            
+        entity = None
+        from telethon.tl.functions.channels import JoinChannelRequest
+        from telethon.tl.functions.messages import ImportChatInviteRequest, CheckChatInviteRequest
+        from telethon.errors import UserAlreadyParticipantError, InviteHashExpiredError, InviteHashInvalidError
+        
+        if invite_hash:
+            try:
+                updates = await client(ImportChatInviteRequest(invite_hash))
+                if hasattr(updates, "chats") and updates.chats:
+                    entity = updates.chats[0]
+                else:
+                    invite_info = await client(CheckChatInviteRequest(invite_hash))
+                    if hasattr(invite_info, "chat"):
+                        entity = invite_info.chat
+            except UserAlreadyParticipantError:
+                # Already in the group
+                invite_info = await client(CheckChatInviteRequest(invite_hash))
+                if hasattr(invite_info, "chat"):
+                    entity = invite_info.chat
+            except (InviteHashExpiredError, InviteHashInvalidError):
+                return JSONResponse({"status": "error", "message": "Link undangan privat sudah kedaluwarsa atau tidak valid."}, status_code=400)
+        else:
+            try:
+                entity = await client.get_entity(clean_target)
+                from telethon.tl.types import Channel, Chat
+                if isinstance(entity, (Channel, Chat)):
+                    await client(JoinChannelRequest(entity))
+            except Exception as e:
+                # Try joining by string username directly
+                await client(JoinChannelRequest(clean_target))
+                entity = await client.get_entity(clean_target)
+                
+        title = getattr(entity, "title", clean_target)
+        
+        # Optionally add to targets database
+        if add_to_targets == 1:
+            try:
+                res = await group_svc.add_group(clean_target, client=client)
+                if res["status"] == "exists":
+                    return JSONResponse({"status": "success", "message": f"Berhasil bergabung dengan '{title}' (sudah ada di database target)."})
+                else:
+                    return JSONResponse({"status": "success", "message": f"Berhasil bergabung dan menambahkan '{title}' ke database target."})
+            except Exception as db_err:
+                logger.warning(f"Joined group, but failed to save to database: {db_err}")
+                return JSONResponse({"status": "success", "message": f"Berhasil bergabung dengan '{title}', namun gagal menyimpannya ke database target."})
+                
+        return JSONResponse({"status": "success", "message": f"Berhasil bergabung dengan grup/channel '{title}'!"})
+    except Exception as e:
+        logger.error(f"Failed to join group for session {session_name}: {e}", exc_info=True)
+        return JSONResponse({"status": "error", "message": f"Gagal bergabung: {str(e)}"}, status_code=500)
+
 @app.post("/sessions/request-code")
 async def post_request_code(request: Request, phone_number: str = Form(...)):
     if not request.session.get("logged_in"):

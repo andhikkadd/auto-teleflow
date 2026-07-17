@@ -47,6 +47,22 @@
         box-shadow: none;
         color: #fff;
     }
+
+    .nav-tabs .nav-link {
+        color: rgba(255, 255, 255, 0.6) !important;
+        border: none !important;
+        border-bottom: 3px solid transparent !important;
+        transition: all 0.3s ease;
+    }
+    .nav-tabs .nav-link.active {
+        color: #00f2fe !important;
+        background: transparent !important;
+        border-bottom: 3px solid #00f2fe !important;
+    }
+    .nav-tabs .nav-link:hover {
+        color: #fff !important;
+        border-bottom: 3px solid rgba(255, 255, 255, 0.3) !important;
+    }
 </style>
 {% endblock %}
 
@@ -168,6 +184,11 @@
                                         onclick="checkStatus('{{ sess.name }}')">
                                         <span class="spinner-border spinner-border-sm me-1 d-none" id="spinner-check-{{ sess.name }}" role="status"></span>
                                         <i class="bi bi-shield-shaded me-1"></i> Cek Ban
+                                    </button>
+                                    <button class="btn btn-outline-success btn-sm rounded-pill px-3 me-1"
+                                        id="btn-manage-{{ sess.name }}"
+                                        onclick="openManageAccountModal('{{ sess.name }}')">
+                                        <i class="bi bi-person-gear me-1"></i> Kelola
                                     </button>
                                     {% endif %}
                                     <button class="btn btn-outline-info btn-sm rounded-pill px-3 me-1"
@@ -318,6 +339,125 @@
                     <button type="submit" class="btn btn-info rounded-pill px-4 text-dark fw-bold">Simpan Proxy</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Account Modal -->
+<div class="modal fade" id="manageAccountModal" tabindex="-1" aria-labelledby="manageAccountModalLabel" aria-hidden="true" style="background: rgba(0,0,0,0.65);">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content glass-card shadow-lg" style="background: #151515; border: 1px solid rgba(255,255,255,0.1);">
+            <div class="modal-header border-bottom border-secondary">
+                <h5 class="modal-title fw-bold" id="manageAccountModalLabel"><i class="bi bi-person-gear text-success me-2"></i>Kelola Akun: <span id="manage-session-title">Session</span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-start">
+                <!-- Navigation Tabs -->
+                <ul class="nav nav-tabs border-secondary mb-3" id="manageTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active text-white bg-transparent border-0 border-bottom border-3 border-transparent" id="otp-tab" data-bs-toggle="tab" data-bs-target="#otp-tab-pane" type="button" role="tab" aria-controls="otp-tab-pane" aria-selected="true">
+                            <i class="bi bi-shield-lock me-1"></i> OTP / Kode Login
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-white bg-transparent border-0 border-bottom border-3 border-transparent" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile-tab-pane" type="button" role="tab" aria-controls="profile-tab-pane" aria-selected="false" onclick="loadProfileData()">
+                            <i class="bi bi-person-badge me-1"></i> Edit Profil
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link text-white bg-transparent border-0 border-bottom border-3 border-transparent" id="join-tab" data-bs-toggle="tab" data-bs-target="#join-tab-pane" type="button" role="tab" aria-controls="join-tab-pane" aria-selected="false">
+                            <i class="bi bi-box-arrow-in-right me-1"></i> Join Group
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab Contents -->
+                <div class="tab-content" id="manageTabsContent">
+                    <!-- Tab 1: OTP / Messages -->
+                    <div class="tab-pane fade show active" id="otp-tab-pane" role="tabpanel" aria-labelledby="otp-tab" tabindex="0">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="text-secondary small">Menampilkan kode OTP dan pesan dari chat resmi Telegram (777000). Gunakan ini untuk login di perangkat lain.</span>
+                            <button type="button" class="btn btn-sm btn-outline-light rounded-pill px-3" onclick="fetchOTP()">
+                                <span class="spinner-border spinner-border-sm me-1 d-none" id="spinner-otp-refresh" role="status"></span>
+                                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                            </button>
+                        </div>
+                        
+                        <!-- Big OTP Highlight Box -->
+                        <div id="otp-highlight-container" class="d-none mb-3 p-3 bg-success bg-opacity-10 border border-success border-opacity-25 rounded-3 text-center">
+                            <div class="text-success small fw-bold mb-1"><i class="bi bi-unlock-fill me-1"></i> KODE LOGIN TERBARU</div>
+                            <div class="fs-1 fw-bold font-monospace tracking-wide text-white" id="otp-highlight-code">- - - - -</div>
+                            <div class="text-secondary small mt-1" id="otp-highlight-time">Beberapa saat yang lalu</div>
+                        </div>
+
+                        <!-- Messages List -->
+                        <div class="list-group list-group-flush bg-transparent" id="otp-messages-list" style="max-height: 250px; overflow-y: auto;">
+                            <div class="text-center py-4 text-muted">
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                Mengambil pesan OTP...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Edit Profile -->
+                    <div class="tab-pane fade" id="profile-tab-pane" role="tabpanel" aria-labelledby="profile-tab" tabindex="0">
+                        <div id="profile-feedback" class="d-none mb-3"></div>
+                        <div id="profile-loading" class="text-center py-4 text-muted">
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            Mengambil data profil dari Telegram...
+                        </div>
+                        <form id="profile-form" class="d-none">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small fw-bold">Nama Depan (First Name)</label>
+                                    <input type="text" class="form-control bg-dark border-secondary text-white" id="profile_first_name" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-secondary small fw-bold">Nama Belakang (Last Name)</label>
+                                    <input type="text" class="form-control bg-dark border-secondary text-white" id="profile_last_name">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-secondary small fw-bold">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-dark border-secondary text-secondary">@</span>
+                                    <input type="text" class="form-control bg-dark border-secondary text-white" id="profile_username" placeholder="kosongkan jika tidak ingin diset">
+                                </div>
+                                <div class="form-text text-muted small">Username publik yang bisa dicari orang lain.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-secondary small fw-bold">Bio / About</label>
+                                <textarea class="form-control bg-dark border-secondary text-white" id="profile_about" rows="2" maxlength="70" placeholder="Halo, saya menggunakan bot ini."></textarea>
+                                <div class="form-text text-muted small">Bio profil Anda (maksimal 70 karakter).</div>
+                            </div>
+                            <button type="submit" class="btn btn-success rounded-pill px-4" id="btn-save-profile">
+                                <span class="spinner-border spinner-border-sm me-1 d-none" id="spinner-profile-save" role="status"></span>
+                                Simpan Perubahan Profil
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Tab 3: Join Group -->
+                    <div class="tab-pane fade" id="join-tab-pane" role="tabpanel" aria-labelledby="join-tab" tabindex="0">
+                        <div id="join-feedback" class="d-none mb-3"></div>
+                        <form id="join-form">
+                            <div class="mb-3">
+                                <label class="form-label text-secondary small fw-bold">Username / Link Grup atau Channel</label>
+                                <input type="text" class="form-control bg-dark border-secondary text-white" id="join_group_ref" placeholder="@nama_grup atau https://t.me/+" required>
+                                <div class="form-text text-muted small">Mendukung username publik (contoh: <code>@grupku</code>), link publik (contoh: <code>t.me/grupku</code>), atau link undangan privat (contoh: <code>t.me/joinchat/XXXX</code> atau <code>t.me/+XXXX</code>).</div>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="join_add_to_targets" value="1">
+                                <label class="form-check-label text-secondary small" for="join_add_to_targets">Tambahkan grup ini ke database target promosi</label>
+                            </div>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4" id="btn-join-submit">
+                                <span class="spinner-border spinner-border-sm me-1 d-none" id="spinner-join-submit" role="status"></span>
+                                Bergabung Sekarang
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -538,5 +678,262 @@
             spinner.classList.add('d-none');
         }
     };
+
+    // Manage Account Modal JS logic
+    let currentManageSession = null;
+    let manageAccountModal = null;
+
+    window.openManageAccountModal = function(sessionName) {
+        currentManageSession = sessionName;
+        document.getElementById('manage-session-title').textContent = sessionName;
+        
+        // Show first tab (OTP) by default
+        const tabEl = document.querySelector('#otp-tab');
+        const tab = new bootstrap.Tab(tabEl);
+        tab.show();
+
+        // Clear feedbacks
+        document.getElementById('profile-feedback').classList.add('d-none');
+        document.getElementById('join-feedback').classList.add('d-none');
+
+        // Fetch OTP instantly
+        fetchOTP();
+
+        if (!manageAccountModal) {
+            manageAccountModal = new bootstrap.Modal(document.getElementById('manageAccountModal'));
+        }
+        manageAccountModal.show();
+    };
+
+    window.fetchOTP = async function() {
+        const listContainer = document.getElementById('otp-messages-list');
+        const spinner = document.getElementById('spinner-otp-refresh');
+        const highlightContainer = document.getElementById('otp-highlight-container');
+        const highlightCode = document.getElementById('otp-highlight-code');
+        const highlightTime = document.getElementById('otp-highlight-time');
+
+        if (!currentManageSession) return;
+
+        spinner.classList.remove('d-none');
+        
+        try {
+            const response = await fetch(`/sessions/${currentManageSession}/otp`);
+            const data = await response.json();
+
+            listContainer.innerHTML = '';
+            
+            if (data.status === 'success') {
+                const messages = data.messages;
+                if (!messages || messages.length === 0) {
+                    listContainer.innerHTML = `
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-chat-dots me-2"></i> Belum ada pesan atau kode OTP dari Telegram.
+                        </div>
+                    `;
+                    highlightContainer.classList.add('d-none');
+                } else {
+                    // Check if the most recent message contains a code
+                    const newest = messages[0];
+                    if (newest.code) {
+                        highlightCode.textContent = newest.code;
+                        
+                        // format date nicely
+                        const dateObj = new Date(newest.date);
+                        highlightTime.textContent = `Diterima pada: ${dateObj.toLocaleTimeString()} (${dateObj.toLocaleDateString()})`;
+                        highlightContainer.classList.remove('d-none');
+                    } else {
+                        highlightContainer.classList.add('d-none');
+                    }
+
+                    messages.forEach(msg => {
+                        const dateObj = new Date(msg.date);
+                        const timeStr = dateObj.toLocaleTimeString() + ' ' + dateObj.toLocaleDateString();
+                        
+                        // escape HTML in msg text
+                        const escapedText = msg.text
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;')
+                            .replace(/"/g, '&quot;')
+                            .replace(/'/g, '&#039;');
+
+                        // Highlight code in the message text itself if present
+                        let displayText = escapedText;
+                        if (msg.code) {
+                            displayText = escapedText.replace(msg.code, `<strong class="text-warning fs-5 px-1 bg-dark rounded">${msg.code}</strong>`);
+                        }
+
+                        const item = document.createElement('div');
+                        item.className = 'list-group-item bg-transparent text-white border-secondary border-bottom py-3 px-0';
+                        item.innerHTML = `
+                            <div class="d-flex w-100 justify-content-between mb-1">
+                                <h6 class="mb-1 text-info font-monospace"><i class="bi bi-chat-left-quote me-1"></i> Telegram Service</h6>
+                                <small class="text-muted">${timeStr}</small>
+                            </div>
+                            <p class="mb-1 small text-secondary" style="white-space: pre-wrap; font-size: 0.9rem;">${displayText}</p>
+                        `;
+                        listContainer.appendChild(item);
+                    });
+                }
+            } else {
+                listContainer.innerHTML = `
+                    <div class="alert alert-danger bg-transparent border-danger text-danger small">
+                        Gagal memuat OTP: ${data.message || 'Unknown error'}
+                    </div>
+                `;
+                highlightContainer.classList.add('d-none');
+            }
+        } catch (err) {
+            listContainer.innerHTML = `
+                <div class="alert alert-danger bg-transparent border-danger text-danger small">
+                    Kesalahan jaringan: Gagal terhubung ke server.
+                </div>
+            `;
+            highlightContainer.classList.add('d-none');
+        } finally {
+            spinner.classList.add('d-none');
+        }
+    };
+
+    window.loadProfileData = async function() {
+        const form = document.getElementById('profile-form');
+        const loading = document.getElementById('profile-loading');
+        const feedback = document.getElementById('profile-feedback');
+        
+        if (!currentManageSession) return;
+
+        form.classList.add('d-none');
+        loading.classList.remove('d-none');
+        feedback.classList.add('d-none');
+
+        try {
+            const response = await fetch(`/sessions/${currentManageSession}/profile`);
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                document.getElementById('profile_first_name').value = data.profile.first_name || '';
+                document.getElementById('profile_last_name').value = data.profile.last_name || '';
+                document.getElementById('profile_username').value = data.profile.username || '';
+                document.getElementById('profile_about').value = data.profile.about || '';
+                
+                loading.classList.add('d-none');
+                form.classList.remove('d-none');
+            } else {
+                feedback.className = 'alert alert-danger bg-transparent border-danger text-danger small';
+                feedback.textContent = `Gagal memuat profil: ${data.message}`;
+                feedback.classList.remove('d-none');
+                loading.classList.add('d-none');
+            }
+        } catch (err) {
+            feedback.className = 'alert alert-danger bg-transparent border-danger text-danger small';
+            feedback.textContent = 'Kesalahan jaringan atau server.';
+            feedback.classList.remove('d-none');
+            loading.classList.add('d-none');
+        }
+    };
+
+    document.getElementById('profile-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const feedback = document.getElementById('profile-feedback');
+        const spinner = document.getElementById('spinner-profile-save');
+        const btn = document.getElementById('btn-save-profile');
+
+        const first_name = document.getElementById('profile_first_name').value.trim();
+        const last_name = document.getElementById('profile_last_name').value.trim();
+        const username = document.getElementById('profile_username').value.trim();
+        const about = document.getElementById('profile_about').value.trim();
+
+        feedback.classList.add('d-none');
+        spinner.classList.remove('d-none');
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(`/sessions/${currentManageSession}/profile`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    first_name: first_name,
+                    last_name: last_name,
+                    username: username,
+                    about: about,
+                    csrf_token: csrfToken
+                })
+            });
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                feedback.className = 'alert alert-success bg-transparent border-success text-success small mb-3';
+                feedback.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i>${data.message}`;
+                feedback.classList.remove('d-none');
+                
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                feedback.className = 'alert alert-danger bg-transparent border-danger text-danger small mb-3';
+                feedback.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>Gagal menyimpan: ${data.message}`;
+                feedback.classList.remove('d-none');
+            }
+        } catch (err) {
+            feedback.className = 'alert alert-danger bg-transparent border-danger text-danger small mb-3';
+            feedback.textContent = 'Kesalahan jaringan atau server.';
+            feedback.classList.remove('d-none');
+        } finally {
+            spinner.classList.add('d-none');
+            btn.disabled = false;
+        }
+    });
+
+    document.getElementById('join-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const feedback = document.getElementById('join-feedback');
+        const spinner = document.getElementById('spinner-join-submit');
+        const btn = document.getElementById('btn-join-submit');
+
+        const group_ref = document.getElementById('join_group_ref').value.trim();
+        const add_to_targets = document.getElementById('join_add_to_targets').checked ? 1 : 0;
+
+        feedback.classList.add('d-none');
+        spinner.classList.remove('d-none');
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(`/sessions/${currentManageSession}/join-group`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    group_ref: group_ref,
+                    add_to_targets: add_to_targets,
+                    csrf_token: csrfToken
+                })
+            });
+            const data = await response.json();
+
+            if (data.status === 'success') {
+                feedback.className = 'alert alert-success bg-transparent border-success text-success small mb-3';
+                feedback.innerHTML = `<i class="bi bi-check-circle-fill me-2"></i>${data.message}`;
+                feedback.classList.remove('d-none');
+                document.getElementById('join_group_ref').value = '';
+                document.getElementById('join_add_to_targets').checked = false;
+            } else {
+                feedback.className = 'alert alert-danger bg-transparent border-danger text-danger small mb-3';
+                feedback.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i>Gagal bergabung: ${data.message}`;
+                feedback.classList.remove('d-none');
+            }
+        } catch (err) {
+            feedback.className = 'alert alert-danger bg-transparent border-danger text-danger small mb-3';
+            feedback.textContent = 'Kesalahan jaringan atau server.';
+            feedback.classList.remove('d-none');
+        } finally {
+            spinner.classList.add('d-none');
+            btn.disabled = false;
+        }
+    });
 </script>
 {% endblock %}
